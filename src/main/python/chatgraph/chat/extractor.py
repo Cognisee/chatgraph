@@ -34,7 +34,20 @@ Vertex id strategy
 
 Edge ids are deterministic: ``"{out_id}-{label}->{in_id}"``.
 
-Failures (API errors, malformed extractions, Gremlin write errors) are
+Validation loop
+---------------
+Each materialised delta is validated against the domain's typed
+``hydra.pg.model.GraphSchema`` (loaded once at construction) via
+``chatgraph.chat.validation.validate_delta``. On failure the typed
+error is echoed back to Claude Haiku as a ``tool_result`` and the
+call is retried, up to ``MAX_EXTRACTION_ATTEMPTS`` total attempts.
+After exhausting the budget the utterance's delta is dropped (logged
+but not written) and the conversation continues. The validation check
+deliberately skips cross-graph endpoint errors -- a delta's edges
+usually reference prior-turn vertices whose label the validator
+doesn't have visibility into.
+
+Failures (API errors, malformed extractions, exhausted retries) are
 logged and swallowed -- the conversation never blocks on the graph.
 """
 
@@ -46,13 +59,13 @@ import os
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import anthropic
 import hydra.core as core
 import hydra.pg.model as pg
 from hydra.dsl.python import FrozenDict
+from hydrapop.decode import decode_graph_schema
 
 if TYPE_CHECKING:
     from chatgraph.domains import Domain
@@ -68,22 +81,19 @@ DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 # giving up and dropping the utterance's delta.
 MAX_EXTRACTION_ATTEMPTS = 3
 
-def _load_schema_allowlists(schema_path: Path) -> tuple[
+def _allowlists_from_schema(schema: dict) -> tuple[
     dict[str, set[str]],
     dict[str, tuple[str, str]],
     dict[str, set[str]],
     tuple[str, ...],
 ]:
     """Derive (allowed_vertex_props, allowed_edges, allowed_edge_props,
-    vocabulary_labels) from a domain's committed schema JSON.
+    vocabulary_labels) from a parsed schema-JSON dict.
 
     Reading the schema as the source of truth eliminates the drift class
     where the schema gains a new label or property but the extractor
     still drops it as "unknown".
     """
-    with open(schema_path) as f:
-        schema = json.load(f)
-
     allowed_vertex_props: dict[str, set[str]] = {}
     for entry in schema["vertices"]:
         label = entry["@key"]
@@ -380,24 +390,21 @@ class Extractor:
         )
         self._domain = domain
 
-        # Schema-derived allow-lists. The extractor mirrors the schema
-        # via the JSON; updating the schema and re-running
-        # ``chatgraph-build-schema <domain>`` is enough to teach the
-        # extractor about new labels and properties.
+        # The committed schema JSON drives two parts of the extractor:
+        #   - allow-list dicts that the tool spec and materializer use
+        #     to filter unknown labels and unknown properties; and
+        #   - a typed ``hydra.pg.model.GraphSchema`` used to validate
+        #     each delta before it is written.
+        # Load the JSON once, then derive both.
+        with open(domain.schema_path) as _f:
+            schema_json = json.load(_f)
         (
             self._allowed_vertex_props,
             self._allowed_edges,
             self._allowed_edge_props,
             self._vocabulary_labels,
-        ) = _load_schema_allowlists(domain.schema_path)
-
-        # Same schema decoded as a Hydra GraphSchema, for delta validation.
-        # Allow-lists catch most schema deviations at the tool / materialize
-        # layer; the typed schema catches what those layers can't (literal
-        # type mismatches, missing required properties, etc.).
-        from hydrapop.decode import decode_graph_schema
-        with open(domain.schema_path) as _f:
-            self._schema = decode_graph_schema(json.load(_f))
+        ) = _allowlists_from_schema(schema_json)
+        self._schema = decode_graph_schema(schema_json)
 
         # System prompt = domain-supplied intro + schema reference.
         self._system_prompt = domain.extractor_prompt_intro + _format_schema_reference(
@@ -493,19 +500,9 @@ class Extractor:
             # validation error as a tool_result. The next iteration's
             # messages.create call sees the full corrective context.
             messages.append({"role": "assistant", "content": resp.content})
-            messages.append({
-                "role": "user",
-                "content": [{
-                    "type": "tool_result",
-                    "tool_use_id": tool_use.id,
-                    "content": (
-                        f"Schema validation failed: {last_error_message}. "
-                        f"Re-emit the graph delta with this fixed. Keep "
-                        f"any other vertices and edges that were correct."
-                    ),
-                    "is_error": True,
-                }],
-            })
+            messages.append(_validation_feedback_message(
+                tool_use_id=tool_use.id, error_message=last_error_message,
+            ))
 
         log.error(
             "Extractor: giving up on utterance after %d failed attempts; "
@@ -542,6 +539,27 @@ class Extractor:
 
 def _empty_graph() -> pg.Graph:
     return pg.Graph(vertices=FrozenDict({}), edges=FrozenDict({}))
+
+
+def _validation_feedback_message(*, tool_use_id: str, error_message: str) -> dict:
+    """Build the corrective ``user`` message sent back to the extractor LLM
+    after a validation failure. The next ``messages.create`` call will see
+    the original user message, the prior ``tool_use``, and this
+    ``tool_result``, and is expected to re-emit a corrected delta.
+    """
+    return {
+        "role": "user",
+        "content": [{
+            "type": "tool_result",
+            "tool_use_id": tool_use_id,
+            "content": (
+                f"Schema validation failed: {error_message}. "
+                f"Re-emit the entire graph delta for this utterance "
+                f"with the error corrected."
+            ),
+            "is_error": True,
+        }],
+    }
 
 
 def _lit(s: str):

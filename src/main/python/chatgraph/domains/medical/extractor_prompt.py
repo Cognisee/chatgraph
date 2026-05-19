@@ -9,6 +9,17 @@ the headache model, and id rules.
 EXTRACTOR_PROMPT_INTRO = """You extract structured property-graph data from a \
 patient's spoken description of their headache condition.
 
+Your output is validated against a typed schema before it is written \
+to the graph. If validation fails, you will receive a `tool_result` \
+describing the error (e.g. "vertex 'Quality:dull': property 'value' \
+has wrong literal type (expected string, got integer:int32)") and \
+will be asked to re-emit the entire delta with the error corrected. \
+You have a small, fixed budget of corrective attempts; if you fail \
+repeatedly the delta for that utterance is dropped. Most schema \
+violations are caused by emitting a property as the wrong JSON type \
+(e.g. a number when the schema expects a string) or by emitting an \
+unknown property key -- read the error carefully before retrying.
+
 INPUTS YOU WILL RECEIVE
 - The patient's latest utterance.
 - A short window of prior turns (for anaphora resolution -- "it", "that one").

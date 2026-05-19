@@ -768,10 +768,12 @@ def build_schema():
 
 def schema_path() -> Path:
     # __file__: src/main/python/chatgraph/domains/medical/schema_build.py
-    # parents:  [0]=medical [1]=domains [2]=chatgraph [3]=python
-    #           [4]=main    [5]=src     [6]=project_root
-    # The JSON artifact lives as a peer of the Python sources under
-    # src/main/, mirroring Hydra's polyglot src/main/<lang>/ layout.
+    # parents[4] is src/main/, so the resolved path is
+    # src/main/json/medical.json. The JSON artifact lives as a peer of
+    # the Python sources under src/main/, mirroring Hydra's polyglot
+    # src/main/<lang>/ layout. Ancestry for reference:
+    #   [0]=medical [1]=domains [2]=chatgraph [3]=python
+    #   [4]=main    [5]=src     [6]=project_root
     return Path(__file__).resolve().parents[4] / "json" / "medical.json"
 
 

@@ -1,12 +1,14 @@
 # chatgraph
 
-Voice-driven knowledge-elicitation demo. A subject speaks in their own
-words about some topic in a chosen *domain*; an LLM-driven assistant
-conducts an interview in real time; a second LLM extracts a property
+This is a voice-driven knowledge elicitation demo using [Hydra](https://github.com/CategoricalData/hydra)
+and [TinkerPop](https://tinkerpop.apache.org/).
+A subject speaks in their own
+words about some topic in a specified *domain* with an LLM-driven assistant,
+while a second LLM agent extracts a property
 graph of what was said, vertex by vertex and edge by edge, into a live
-TinkerPop graph database that you can watch update during the
+graph database that you can watch update during the
 conversation in a tool like [gdotv](https://www.gdotv.com/). The first
-shipped domain (`medical`) interviews a patient about headache
+shipped domain (`medical`) is focused on headache
 disorders; the architecture is domain-neutral and a new domain is a
 self-contained subpackage (schema + prompts + opening line).
 
@@ -64,6 +66,21 @@ on dedicated worker threads bridged into the event loop.
   via [gremlinpython](https://pypi.org/project/gremlinpython/). Writes
   are serialized so concurrent extractions can't race their edges past
   each other's vertices.
+
+- **Schema validation.** Before each delta is written, it is validated
+  against the domain's typed Hydra `GraphSchema` via
+  `hydra.validate.pg.validate_graph`. The check catches literal-type
+  mismatches, missing required properties, and unknown labels that the
+  tool-spec enum and the materializer's allow-lists let through (e.g.
+  a property declared `int32` in the schema arriving as a string). If
+  validation fails, the typed error is echoed back to Claude Haiku as
+  a `tool_result` and the extractor is asked to correct its output;
+  the call retries up to three attempts total. After three consecutive
+  failures the utterance's delta is dropped (logged but not written),
+  and the conversation continues uninterrupted. Cross-turn edge
+  endpoints — where the edge references a vertex from a previous turn,
+  not in the current delta — are deliberately not validated, because
+  the live graph in Gremlin Server is the source of truth for those.
 
 - **Schema / typed property graph.** The schema is a
   [Hydra](https://github.com/CategoricalData/hydra) `GraphSchema`.
@@ -216,7 +233,7 @@ The first positional argument to `chatgraph` selects the domain.
 Create `src/main/python/chatgraph/domains/<name>/` containing:
 
 1. `schema_build.py` — authors a `hydra.pg.model.GraphSchema` and
-   writes it to `schema/<name>.json`.
+   writes it to `src/main/json/<name>.json`.
 2. `agent_prompt.py` — module-level `OPENING_LINE` string and
    `SYSTEM_PROMPT` string for the conversational agent.
 3. `extractor_prompt.py` — module-level `EXTRACTOR_PROMPT_INTRO`
@@ -250,6 +267,18 @@ python bin/diagnose.py
 
 Should report `[OK]` for env vars, sound device, Gremlin Server,
 Deepgram, Anthropic, and OpenAI TTS.
+
+## Run the smoke test
+
+```bash
+pip install -e ".[dev]"   # one-time: pytest + ruff + pyright
+pytest src/test/python/chatgraph/test_extractor_smoke.py -v -s
+```
+
+The smoke test calls Claude Haiku for real and costs a few cents per
+run. It requires `ANTHROPIC_API_KEY` and `HYDRAPOP_HOME` in the
+environment. The test asserts that one rich utterance yields the
+expected vertex and edge labels in the extracted delta.
 
 ## Run the demo
 
@@ -300,9 +329,13 @@ Environment variables (in `.env` or your shell):
 | `CHATGRAPH_LOG_LEVEL` | (unset) | Overrides the `-v` / `-vv` flags. Set to `INFO` or `DEBUG` if you want. |
 | `HYDRAPOP_HOME` | (required) | Absolute path to a local HydraPop clone. |
 
-If the agent jumps in too eagerly when you pause to think, the next
-knob is `eot_threshold` (and `eot_timeout_ms`) on the Deepgram Flux
-connection. See `src/main/python/chatgraph/chat/stt.py`.
+If the agent jumps in too eagerly when you pause to think, the
+Deepgram Flux API supports `eot_threshold` and `eot_timeout_ms`
+parameters that gate the `EagerEndOfTurn` and `EndOfTurn` events.
+They are not currently wired up in `src/main/python/chatgraph/chat/stt.py`
+(the `connect()` call only passes `model`, `encoding`, and
+`sample_rate`); adding them is the smallest change that would expose
+this control to the user.
 
 ## Project layout
 

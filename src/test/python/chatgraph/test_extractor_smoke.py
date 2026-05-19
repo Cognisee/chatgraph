@@ -38,10 +38,11 @@ def test_rich_utterance_produces_sensible_delta(capsys):
 
     load_dotenv()
 
+    from chatgraph import domains as _domains
     from chatgraph.chat.extractor import Extractor, RollingContext
 
     async def run():
-        ex = Extractor()
+        ex = Extractor(domain=_domains.get("medical"))
         ctx = RollingContext(person_id="Person:patient")
         u = (
             "I have occasional headaches, ranging from mild to severe, "

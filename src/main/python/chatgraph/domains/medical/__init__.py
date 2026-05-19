@@ -19,8 +19,10 @@ from chatgraph.domains.medical.extractor_prompt import EXTRACTOR_PROMPT_INTRO
 # module reads it as a peer artifact of the Python sources, both
 # living under src/main/. Path computed relative to this file so it
 # works regardless of CWD.
-# parents:  [0]=medical [1]=domains [2]=chatgraph [3]=python
-#           [4]=main    [5]=src     [6]=project_root
+# parents[4] from this file is src/main/, so the resolved path is
+# src/main/json/medical.json. Ancestry for reference:
+#   [0]=medical [1]=domains [2]=chatgraph [3]=python
+#   [4]=main    [5]=src     [6]=project_root
 _SCHEMA_PATH = (
     Path(__file__).resolve().parents[4] / "json" / "medical.json"
 )

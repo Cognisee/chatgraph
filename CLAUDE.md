@@ -1,8 +1,9 @@
 # LLM quickstart guide for chatgraph
 
 This document orients an LLM assistant (or human reader) to the
-chatgraph project. For the end-user view, see `README.md` and
-`docs/medical-schema.md`.
+chatgraph project. For the end-user view, see `README.md`; for
+domain-specific schema walkthroughs, see `docs/` (e.g.
+`docs/medical-schema.md` for the medical domain).
 
 ## What is chatgraph?
 

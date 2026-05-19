@@ -18,8 +18,6 @@ from anthropic import AsyncAnthropic
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
 
-
-
 @dataclass
 class Conversation:
     """Rolling chat history for the agent.

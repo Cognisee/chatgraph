@@ -140,8 +140,10 @@ async def check_openai_tts() -> None:
         c = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
         t0 = time.monotonic()
         total = 0
+        # Match the runtime TTS model in chatgraph/chat/tts.py so that
+        # this diagnostic actually exercises what the demo will use.
         async with c.audio.speech.with_streaming_response.create(
-            model="gpt-4o-mini-tts",
+            model="tts-1",
             voice=os.environ.get("CHATGRAPH_TTS_VOICE", "nova"),
             input="Diagnostic.",
             response_format="pcm",

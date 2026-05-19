@@ -28,6 +28,12 @@ from pathlib import Path
 class Domain:
     """A complete domain configuration.
 
+    Immutable by value: ``Domain`` instances cannot be mutated after
+    construction. The :data:`REGISTRY` that maps names to ``Domain``
+    instances IS mutable, however -- :func:`register` deliberately
+    allows re-registration so a test or notebook can swap in a
+    modified ``Domain`` under an existing name.
+
     Attributes:
         name: short id used on the CLI (e.g. ``"medical"``).
         schema_path: path to the committed schema JSON.

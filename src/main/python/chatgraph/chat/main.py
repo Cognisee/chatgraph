@@ -6,7 +6,7 @@ asyncio primitives:
 1. Audio capture (sounddevice -> async frame queue).
 2. Deepgram Flux STT (frames -> turn events).
 3. Local Silero VAD (frames -> fast barge-in signal).
-4. Agent reply (Claude Sonnet streaming -> ElevenLabs streaming TTS).
+4. Agent reply (Claude Sonnet streaming -> OpenAI streaming TTS).
 5. Transcript writer.
 
 State machine for the agent: ``idle`` -> ``preparing`` (Claude generation in
