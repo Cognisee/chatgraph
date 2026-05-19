@@ -62,6 +62,12 @@ log = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 
+# Max number of extraction attempts per utterance, counting the initial
+# attempt. With ``MAX_EXTRACTION_ATTEMPTS = 3``, the extractor tries
+# once and then up to two corrective retries if validation fails before
+# giving up and dropping the utterance's delta.
+MAX_EXTRACTION_ATTEMPTS = 3
+
 def _load_schema_allowlists(schema_path: Path) -> tuple[
     dict[str, set[str]],
     dict[str, tuple[str, str]],
@@ -385,6 +391,14 @@ class Extractor:
             self._vocabulary_labels,
         ) = _load_schema_allowlists(domain.schema_path)
 
+        # Same schema decoded as a Hydra GraphSchema, for delta validation.
+        # Allow-lists catch most schema deviations at the tool / materialize
+        # layer; the typed schema catches what those layers can't (literal
+        # type mismatches, missing required properties, etc.).
+        from hydrapop.decode import decode_graph_schema
+        with open(domain.schema_path) as _f:
+            self._schema = decode_graph_schema(json.load(_f))
+
         # System prompt = domain-supplied intro + schema reference.
         self._system_prompt = domain.extractor_prompt_intro + _format_schema_reference(
             self._allowed_vertex_props,
@@ -404,45 +418,101 @@ class Extractor:
         """Run extraction over one patient utterance.
 
         Returns an ExtractionResult with the new vertices and edges plus an
-        optional new current_headache_id. On any failure, returns an
-        empty result; never raises.
+        optional new current_headache_id. The materialized delta is
+        validated against the domain's Hydra GraphSchema; if validation
+        fails, the extractor is asked to correct its output and the call
+        is retried (up to ``MAX_EXTRACTION_ATTEMPTS`` total attempts).
+        After exhausting retries, returns an empty result. On any other
+        failure, also returns an empty result; never raises.
         """
+        from chatgraph.chat.validation import validate_delta
+
         user_msg = self._build_user_message(utterance, context)
-        try:
-            resp = await self._client.messages.create(
-                model=self._model,
-                max_tokens=1024,
-                system=self._system_prompt,
-                tools=[self._tool],
-                tool_choice={"type": "tool", "name": "emit_graph_delta"},
-                messages=[{"role": "user", "content": user_msg}],
-            )
-        except Exception:
-            log.exception("Extractor: Anthropic call failed")
-            return ExtractionResult(delta=_empty_graph())
+        # Mutable message history: grows with each corrective retry so
+        # the model can see its prior tool_use and the validation feedback.
+        messages: list[dict] = [{"role": "user", "content": user_msg}]
 
-        tool_use = next(
-            (b for b in resp.content if getattr(b, "type", None) == "tool_use"),
-            None,
+        last_error_message: str | None = None
+        for attempt in range(1, MAX_EXTRACTION_ATTEMPTS + 1):
+            try:
+                resp = await self._client.messages.create(
+                    model=self._model,
+                    max_tokens=1024,
+                    system=self._system_prompt,
+                    tools=[self._tool],
+                    tool_choice={"type": "tool", "name": "emit_graph_delta"},
+                    messages=messages,
+                )
+            except Exception:
+                log.exception("Extractor: Anthropic call failed")
+                return ExtractionResult(delta=_empty_graph())
+
+            tool_use = next(
+                (b for b in resp.content if getattr(b, "type", None) == "tool_use"),
+                None,
+            )
+            if tool_use is None:
+                log.warning("Extractor: model returned no tool_use block")
+                return ExtractionResult(delta=_empty_graph())
+
+            try:
+                args = tool_use.input
+                if isinstance(args, str):  # defensive
+                    args = json.loads(args)
+                result = _materialize(
+                    args,
+                    current_headache_id=context.current_headache_id,
+                    allowed_vertex_props=self._allowed_vertex_props,
+                    allowed_edges=self._allowed_edges,
+                    allowed_edge_props=self._allowed_edge_props,
+                )
+            except Exception:
+                log.exception("Extractor: failed to materialize delta")
+                return ExtractionResult(delta=_empty_graph())
+
+            validation = validate_delta(self._schema, result.delta)
+            if validation.is_valid:
+                if attempt > 1:
+                    log.info(
+                        "Extractor: delta valid after %d attempt(s)", attempt
+                    )
+                return result
+
+            # Result's repr() produces "INVALID - <typed error dump>", which
+            # is verbose but identical across Hydra's polyglot bindings.
+            last_error_message = repr(validation)
+            log.warning(
+                "Extractor: validation failed (attempt %d/%d): %s",
+                attempt, MAX_EXTRACTION_ATTEMPTS, last_error_message,
+            )
+
+            if attempt == MAX_EXTRACTION_ATTEMPTS:
+                break
+
+            # Re-prompt the model with its prior tool_use and the
+            # validation error as a tool_result. The next iteration's
+            # messages.create call sees the full corrective context.
+            messages.append({"role": "assistant", "content": resp.content})
+            messages.append({
+                "role": "user",
+                "content": [{
+                    "type": "tool_result",
+                    "tool_use_id": tool_use.id,
+                    "content": (
+                        f"Schema validation failed: {last_error_message}. "
+                        f"Re-emit the graph delta with this fixed. Keep "
+                        f"any other vertices and edges that were correct."
+                    ),
+                    "is_error": True,
+                }],
+            })
+
+        log.error(
+            "Extractor: giving up on utterance after %d failed attempts; "
+            "last error: %s",
+            MAX_EXTRACTION_ATTEMPTS, last_error_message,
         )
-        if tool_use is None:
-            log.warning("Extractor: model returned no tool_use block")
-            return ExtractionResult(delta=_empty_graph())
-
-        try:
-            args = tool_use.input
-            if isinstance(args, str):  # defensive
-                args = json.loads(args)
-            return _materialize(
-                args,
-                current_headache_id=context.current_headache_id,
-                allowed_vertex_props=self._allowed_vertex_props,
-                allowed_edges=self._allowed_edges,
-                allowed_edge_props=self._allowed_edge_props,
-            )
-        except Exception:
-            log.exception("Extractor: failed to materialize delta")
-            return ExtractionResult(delta=_empty_graph())
+        return ExtractionResult(delta=_empty_graph())
 
     def _build_user_message(
         self, utterance: str, context: RollingContext
