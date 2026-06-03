@@ -44,6 +44,39 @@ projects (Hydra, HydraPop, the Hydra Python dist packages).
 - `bin/diagnose.py` — one-shot health check of all external
   dependencies.
 
+## Schema: one source of truth
+
+For every domain, the committed Hydra JSON (`src/main/json/<domain>.json`)
+is the **single source of truth for the graph schema**. Everything that
+needs to know the schema derives from that JSON; nothing maintains a
+parallel copy of it by hand.
+
+The chain is one-directional:
+
+1. `domains/<name>/schema_build.py` is how the JSON is *authored* — a
+   Python DSL program. It is the editing surface, not a second source:
+   running `chatgraph-build-schema <name>` regenerates the JSON from it.
+   Re-running with no source change reproduces the JSON byte-for-byte.
+2. `src/main/json/<domain>.json` is the canonical schema artifact, and
+   the only thing the runtime loads.
+3. The **extractor's schema reference** — the vertex/edge/property table
+   appended to the LLM's system prompt — is generated **programmatically**
+   from that JSON at `Extractor.__init__`
+   (`chat/extractor.py::_allowlists_from_schema` +
+   `_format_schema_reference`). It is pure deterministic string-building
+   over the decoded JSON; **no LLM is involved in producing it**, so it
+   cannot drift from the schema. Likewise the tool-use spec / enums.
+4. `docs/<domain>-schema.md` is **for human consumption only**. It is a
+   prose walkthrough of the clinical model, loaded by *nothing* in the
+   code. If it ever disagrees with the JSON, the JSON wins — treat the
+   Markdown as documentation that can lag, never as a spec.
+
+Practical consequence: to change a domain's schema, edit
+`schema_build.py`, regenerate the JSON, and (optionally) update the prose
+walkthrough to match. Never hand-edit the JSON, and never encode schema
+facts (label lists, property types, edge endpoints) anywhere a human has
+to keep in sync — derive them from the JSON instead.
+
 ## Commit-message conventions
 
 Same as Hydra. The rules are non-negotiable:

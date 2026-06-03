@@ -108,9 +108,16 @@ on dedicated worker threads bridged into the event loop.
   graph against the schema. The Hydra runtime itself (`hydra-kernel`,
   `hydra-pg`) is a regular PyPI dependency; schemas are authored
   offline using `hydra.pg.model` types, serialized via Hydra's JSON
-  coder, and committed (`src/main/json/medical.json`); at runtime the
-  extractor's tool spec and allow-lists are auto-derived from that
-  JSON, so schema changes flow through without manual mirroring. The
+  coder, and committed (`src/main/json/medical.json`).
+
+  That committed JSON is the **single source of truth for the schema**.
+  Everything the runtime needs is derived from it programmatically: the
+  extractor's tool-use spec, its label/property allow-lists, and the
+  schema-reference table appended to the LLM's prompt are all generated
+  from the JSON at startup (no LLM in that generation step), so a schema
+  change flows through without any hand-mirroring. The prose walkthrough
+  in `docs/medical-schema.md` is **for humans only** — it is loaded by no
+  code, and if it ever disagrees with the JSON, the JSON wins. The
   [HydraPop](https://github.com/CategoricalData/HydraPop) project
   provides the Hydra ↔ TinkerPop bridge (`gremlin_to_hydra` for reading
   the live graph back into Hydra values, `hydra_to_gremlin` for writing

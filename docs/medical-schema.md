@@ -1,12 +1,21 @@
 # Headache-domain schema
 
 Hand-written walkthrough of the medical (headache) domain's typed
-property-graph schema. The schema itself is authored as Python in
-`src/main/python/chatgraph/domains/medical/schema_build.py` and
-emitted to `src/main/json/medical.json` by the
-`chatgraph-build-schema medical` CLI; the JSON is what the runtime
-loads. This document is the human-readable companion -- if it
-disagrees with the JSON, the JSON wins.
+property-graph schema, **for human consumption only**.
+
+`src/main/json/medical.json` is the single source of truth for the
+schema. It is authored as Python in
+`src/main/python/chatgraph/domains/medical/schema_build.py` and emitted
+to the JSON by the `chatgraph-build-schema medical` CLI; the JSON is what
+the runtime loads, and the extractor's prompt schema-reference and
+tool-spec are generated from it programmatically (no LLM in that step).
+
+This document is loaded by **no** code -- it is a prose companion to help
+a reader understand the clinical model, nothing more. It can lag behind
+the JSON; if the two disagree, the JSON wins. Do not treat anything here
+as authoritative, and do not rely on it staying in lockstep with the
+schema (the vertex/edge counts just below, in particular, are a
+point-in-time snapshot).
 
 **77 vertex types, 158 edge types.**
 
