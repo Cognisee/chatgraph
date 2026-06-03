@@ -38,7 +38,7 @@ projects (Hydra, HydraPop, the Hydra Python dist packages).
   `src/main/python/` because the JSON is a build artifact treated as
   another language target, following the Hydra dist convention.
 - `config/gremlin/` — Gremlin Server config (yaml + properties + init
-  groovy). Copy these into `$GREMLIN_HOME/conf/` before launching.
+  groovy). Copy these into `$GREMLIN_SERVER_HOME/conf/` before launching.
 - `docs/` — human-facing documentation (`medical-schema.md`,
   `gremlin-setup.md`). The top-level `README.md` is the entry point.
 - `bin/diagnose.py` — one-shot health check of all external

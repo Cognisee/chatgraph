@@ -3,9 +3,11 @@
 Use these configs with a local Apache TinkerPop Gremlin Server install
 (version 3.7.3 tested). Download the server tarball from
 [tinkerpop.apache.org/downloads](https://tinkerpop.apache.org/downloads.html),
-unpack it, and point `GREMLIN_HOME` at the unpacked directory —
-`gremlin-server.sh` reads this env var, falling back to the parent of
-its own `bin/` directory if unset.
+unpack it, and point `GREMLIN_SERVER_HOME` at the unpacked directory.
+This is just a convenience variable used by the steps below to locate
+the install; the TinkerPop launch script derives its own home from the
+location of `gremlin-server.sh`, so you do not need to export anything
+the script itself reads.
 
 ## Files
 
@@ -21,17 +23,18 @@ its own `bin/` directory if unset.
 ## Install the configs
 
 Gremlin Server resolves YAML-internal paths relative to its working
-directory at launch (`$GREMLIN_HOME`), matching how the stock
+directory at launch (the install root, which the launch script derives
+from its own location), matching how the stock
 `gremlin-server-modern.yaml` references `conf/tinkergraph-empty.properties`.
 So before launching, copy all three files from `config/gremlin/` (at
-the repo root) into `$GREMLIN_HOME/conf/`:
+the repo root) into `$GREMLIN_SERVER_HOME/conf/`:
 
 ```bash
-export GREMLIN_HOME=/path/to/apache-tinkerpop-gremlin-server-3.7.3
+export GREMLIN_SERVER_HOME=/path/to/apache-tinkerpop-gremlin-server-3.7.3
 cp config/gremlin/chatgraph-gremlin-server.yaml \
    config/gremlin/chatgraph-tinkergraph.properties \
    config/gremlin/chatgraph-init.groovy \
-   "$GREMLIN_HOME/conf/"
+   "$GREMLIN_SERVER_HOME/conf/"
 ```
 
 If you later edit any of these in the repo, re-`cp` to pick up the
@@ -40,7 +43,7 @@ change.
 ## Start the server
 
 ```bash
-"$GREMLIN_HOME/bin/gremlin-server.sh" "$GREMLIN_HOME/conf/chatgraph-gremlin-server.yaml"
+"$GREMLIN_SERVER_HOME/bin/gremlin-server.sh" "$GREMLIN_SERVER_HOME/conf/chatgraph-gremlin-server.yaml"
 ```
 
 Leave it running in its own terminal. The server log prints

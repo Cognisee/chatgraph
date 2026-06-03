@@ -6,10 +6,11 @@
 # with gdotv).
 #
 # The paths below are relative to the Gremlin Server working directory
-# (i.e. $GREMLIN_HOME), matching the convention used by the stock
-# tinkergraph configs shipped with TinkerPop. Copy this file plus
-# chatgraph-tinkergraph.properties and chatgraph-init.groovy into
-# $GREMLIN_HOME/conf/ before launching the server. See docs/gremlin-setup.md.
+# (the install root, which the launch script derives from its own location),
+# matching the convention used by the stock tinkergraph configs shipped with
+# TinkerPop. Copy this file plus chatgraph-tinkergraph.properties and
+# chatgraph-init.groovy into $GREMLIN_SERVER_HOME/conf/ before launching the
+# server. See docs/gremlin-setup.md.
 
 host: localhost
 port: 8182

@@ -179,9 +179,9 @@ async def check_gremlin() -> None:
     """Connect to the local Gremlin Server and count vertices.
 
     Expects the server to be running:
-        export GREMLIN_HOME=/path/to/apache-tinkerpop-gremlin-server-3.7.3
-        "$GREMLIN_HOME/bin/gremlin-server.sh" \\
-          "$GREMLIN_HOME/conf/chatgraph-gremlin-server.yaml"
+        export GREMLIN_SERVER_HOME=/path/to/apache-tinkerpop-gremlin-server-3.7.3
+        "$GREMLIN_SERVER_HOME/bin/gremlin-server.sh" \\
+          "$GREMLIN_SERVER_HOME/conf/chatgraph-gremlin-server.yaml"
 
     gremlinpython uses its own asyncio event loop internally; doing this from
     the diagnostic's loop deadlocks with "Cannot run the event loop while

@@ -196,15 +196,15 @@ have to repeat it.
 ## Start Gremlin Server
 
 In a separate terminal, install the configs into
-`$GREMLIN_HOME/conf/` and launch:
+`$GREMLIN_SERVER_HOME/conf/` and launch:
 
 ```bash
-export GREMLIN_HOME=/path/to/apache-tinkerpop-gremlin-server-3.7.3
+export GREMLIN_SERVER_HOME=/path/to/apache-tinkerpop-gremlin-server-3.7.3
 cp config/gremlin/chatgraph-gremlin-server.yaml \
    config/gremlin/chatgraph-tinkergraph.properties \
    config/gremlin/chatgraph-init.groovy \
-   "$GREMLIN_HOME/conf/"
-"$GREMLIN_HOME/bin/gremlin-server.sh" "$GREMLIN_HOME/conf/chatgraph-gremlin-server.yaml"
+   "$GREMLIN_SERVER_HOME/conf/"
+"$GREMLIN_SERVER_HOME/bin/gremlin-server.sh" "$GREMLIN_SERVER_HOME/conf/chatgraph-gremlin-server.yaml"
 ```
 
 The boot log should show `A GraphTraversalSource is now bound to [g]`
