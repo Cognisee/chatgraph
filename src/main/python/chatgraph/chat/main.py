@@ -38,6 +38,34 @@ from chatgraph.chat.tts import OpenAITTS
 log = logging.getLogger(__name__)
 
 
+class _ColorFormatter(logging.Formatter):
+    """Log formatter that wraps WARNING/ERROR lines in ANSI color.
+
+    WARNING is yellow; ERROR and CRITICAL are red. Other levels are left
+    uncolored. When ``use_color`` is False the formatter behaves exactly
+    like a plain ``logging.Formatter`` (used when stderr is not a TTY, so
+    redirected output and log files stay clean).
+    """
+
+    _RESET = "\033[0m"
+    _COLORS = {
+        logging.WARNING: "\033[33m",   # yellow
+        logging.ERROR: "\033[31m",     # red
+        logging.CRITICAL: "\033[31m",  # red
+    }
+
+    def __init__(self, *args, use_color: bool = True, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._use_color = use_color
+
+    def format(self, record: logging.LogRecord) -> str:
+        text = super().format(record)
+        if not self._use_color:
+            return text
+        color = self._COLORS.get(record.levelno)
+        return f"{color}{text}{self._RESET}" if color else text
+
+
 # Default log level for the CLI. Overridden by ``main()`` based on -v / -vv
 # command-line flags, or by the CHATGRAPH_LOG_LEVEL env var (highest
 # priority).
@@ -638,9 +666,16 @@ async def run() -> int:
     # StreamHandler defaults to stderr; force flush after every record so we
     # don't lose output to buffering when the program hangs.
     handler = logging.StreamHandler(sys.stderr)
+    # Color WARNING/ERROR lines red/yellow when stderr is an interactive
+    # terminal, so the extractor's validation failures stand out against
+    # the conversation transcript. Disabled when output is piped/redirected
+    # (so logs stay plain) or when NO_COLOR is set (https://no-color.org).
+    use_color = sys.stderr.isatty() and not os.environ.get("NO_COLOR")
     handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%H:%M:%S"
+        _ColorFormatter(
+            "%(asctime)s %(levelname)s %(name)s: %(message)s",
+            datefmt="%H:%M:%S",
+            use_color=use_color,
         )
     )
     handler.flush = lambda: sys.stderr.flush()  # type: ignore[method-assign]
