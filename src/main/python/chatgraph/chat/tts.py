@@ -22,6 +22,7 @@ import asyncio
 import logging
 import os
 import threading
+from collections.abc import AsyncIterator
 
 from openai import OpenAI
 
@@ -133,20 +134,68 @@ class OpenAITTS:
         await loop.run_in_executor(None, _warm)
 
     async def speak(self, text: str, output: AudioOutput) -> None:
-        """Stream ``text`` to the speaker. Cancellable.
+        """Synthesize ``text`` and stream it to the speaker. Cancellable.
 
         On cancellation, the worker thread is signalled to stop, the HTTP
         stream closes, and ``output.stop()`` drops queued audio.
         """
-        loop = asyncio.get_running_loop()
         cancel_event = threading.Event()
+        try:
+            await self._speak_one(text, output, cancel_event)
+        except asyncio.CancelledError:
+            cancel_event.set()
+            output.stop()
+            raise
+
+    async def speak_stream(
+        self, text_chunks: AsyncIterator[str], output: AudioOutput
+    ) -> None:
+        """Speak an async stream of text chunks, synthesizing each as soon
+        as it arrives so playback starts before the whole reply exists.
+
+        The caller supplies an async iterator that yields ready-to-speak
+        fragments (typically whole sentences split off a streaming LLM
+        reply). Each fragment is synthesized and written to ``output`` in
+        order; because ``AudioOutput`` plays its queue back-to-back, the
+        first fragment begins playing while later fragments are still being
+        produced upstream. This collapses the perceived gap from "first
+        byte of the entire reply" to "first byte of the first sentence".
+
+        Cancellable across the whole stream: a cancel stops the in-flight
+        synthesis, drops queued audio, and halts consumption of further
+        fragments (barge-in).
+        """
+        cancel_event = threading.Event()
+        try:
+            async for chunk in text_chunks:
+                if cancel_event.is_set():
+                    break
+                chunk = chunk.strip()
+                if not chunk:
+                    continue
+                await self._speak_one(chunk, output, cancel_event)
+        except asyncio.CancelledError:
+            cancel_event.set()
+            output.stop()
+            raise
+
+    async def _speak_one(
+        self, text: str, output: AudioOutput, cancel_event: threading.Event
+    ) -> None:
+        """Synthesize one text fragment and write its audio to ``output``.
+
+        Shared by :meth:`speak` and :meth:`speak_stream`. ``cancel_event``
+        is owned by the caller so a single barge-in can stop a multi-chunk
+        stream; this method signals it on its own cancellation too, then
+        re-raises so the caller's handler runs.
+        """
+        loop = asyncio.get_running_loop()
         # The async-iteration consumer awaits chunks here; the worker
         # thread feeds it. None signals EOF (clean end or cancellation).
         queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=64)
 
         def _producer() -> None:
             chunks_seen = 0
-            log.info("OpenAITTS producer: thread started, opening HTTP request")
             try:
                 with self._client.audio.speech.with_streaming_response.create(
                     model=MODEL,
@@ -155,26 +204,13 @@ class OpenAITTS:
                     response_format="pcm",
                     speed=self._speed,
                 ) as response:
-                    log.info("OpenAITTS producer: HTTP response opened, draining body")
                     for chunk in response.iter_bytes(chunk_size=4096):
                         if cancel_event.is_set():
-                            log.debug(
-                                "OpenAITTS producer: cancelled after %d chunks",
-                                chunks_seen,
-                            )
                             return
                         if not chunk:
                             continue
                         chunks_seen += 1
-                        log.debug(
-                            "OpenAITTS producer: got HTTP chunk #%d (%d bytes)",
-                            chunks_seen, len(chunk),
-                        )
                         loop.call_soon_threadsafe(queue.put_nowait, chunk)
-                log.debug(
-                    "OpenAITTS producer: HTTP stream complete (%d chunks)",
-                    chunks_seen,
-                )
             except Exception:
                 if not cancel_event.is_set():
                     log.exception("OpenAITTS producer crashed")
@@ -195,7 +231,6 @@ class OpenAITTS:
                     await output.write(_downsample_24k_to_16k(chunk))
         except asyncio.CancelledError:
             cancel_event.set()
-            output.stop()
             # Drain whatever the producer might still push.
             try:
                 while True:

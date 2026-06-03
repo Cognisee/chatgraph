@@ -22,9 +22,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import signal
 import sys
 import time
+from collections.abc import AsyncIterator
+
 from dotenv import load_dotenv
 
 from chatgraph.chat.agent import Agent, Conversation
@@ -523,29 +526,53 @@ class Coordinator:
         t0: float,
     ) -> None:
         try:
-            if prepared is not None and prep_task is not None:
-                # Wait for the speculative generation to finish.
-                try:
-                    text = await prepared
-                except asyncio.CancelledError:
-                    text = ""
-                except Exception:
-                    text = ""
-            else:
-                # Generate fresh.
-                pieces: list[str] = []
-                extra = self._agent_extra_system()
-                async for delta in self._agent.stream_reply(
-                    self._conversation, extra_system=extra,
-                ):
-                    pieces.append(delta)
-                text = "".join(pieces).strip()
-
-            if not text:
-                return
-
+            # Collects the full reply text as sentences are spoken, for the
+            # transcript and conversation history. Populated by the
+            # sentence generator below as a side effect.
+            spoken: list[str] = []
             agent_ts_start = _now() - t0
-            print(f"agent: {text}")
+            printed_header = False
+
+            def _emit(sentence: str) -> str:
+                """Record a sentence and print it as it begins to be spoken,
+                so the on-screen text tracks the voice rather than dumping
+                the whole reply before any audio plays."""
+                nonlocal printed_header
+                sentence = sentence.strip()
+                spoken.append(sentence)
+                if not printed_header:
+                    print(f"agent: {sentence}", end="", flush=True)
+                    printed_header = True
+                else:
+                    print(f" {sentence}", end="", flush=True)
+                return sentence
+
+            async def _sentences() -> "AsyncIterator[str]":
+                if prepared is not None and prep_task is not None:
+                    # Speculative generation already produced the full text;
+                    # split it into sentences so TTS first-byte is paid on
+                    # the first sentence, not the whole reply.
+                    try:
+                        text = await prepared
+                    except (asyncio.CancelledError, Exception):
+                        text = ""
+                    for s in _split_sentences_final(text):
+                        yield _emit(s)
+                else:
+                    # Generate fresh: split the live delta stream into
+                    # sentences and yield each as soon as it completes.
+                    extra = self._agent_extra_system()
+                    buf = ""
+                    async for delta in self._agent.stream_reply(
+                        self._conversation, extra_system=extra,
+                    ):
+                        buf += delta
+                        sentences, buf = _split_sentences_buffer(buf)
+                        for s in sentences:
+                            yield _emit(s)
+                    tail = buf.strip()
+                    if tail:
+                        yield _emit(tail)
 
             # Stream TTS into the speaker. Track the task so barge-in can
             # cancel it.
@@ -558,7 +585,7 @@ class Coordinator:
             # a normal room).
             self.agent_speaking = True
             async def _tts_run() -> None:
-                await self._tts.speak(text, self._audio_out)
+                await self._tts.speak_stream(_sentences(), self._audio_out)
 
             tts_task = asyncio.create_task(_tts_run())
             self._tts_task = tts_task
@@ -577,6 +604,17 @@ class Coordinator:
                 self._tts_task = None
                 self.agent_speaking = False
 
+            # Terminate the incrementally-printed agent line.
+            if printed_header:
+                print()
+
+            # Reassemble the full reply from the sentences that were
+            # actually emitted (sentence splitting inserts no characters it
+            # drops, but joins need single spaces between fragments).
+            text = " ".join(s.strip() for s in spoken).strip()
+            if not text:
+                return
+
             agent_ts_end = _now() - t0
             self._transcript.write(
                 Utterance(
@@ -592,6 +630,47 @@ class Coordinator:
                 self.add_agent_turn_to_context(text)
         except asyncio.CancelledError:
             pass
+
+
+# Sentence-boundary detection for streaming TTS. We break on sentence
+# punctuation followed by whitespace. The goal is low latency, not
+# linguistic perfection: over-splitting just means more (smaller) TTS
+# requests, while under-splitting only costs a little latency, so a
+# simple rule is fine. To avoid choppy synthesis on abbreviations
+# ("Dr.", "e.g.") and decimals, a fragment must reach a minimum length
+# before we treat a boundary as real.
+_SENTENCE_END = re.compile(r"([.!?])(\s+)")
+_MIN_SENTENCE_CHARS = 12
+
+
+def _split_sentences_buffer(buf: str) -> tuple[list[str], str]:
+    """Split off complete sentences from a growing ``buf``.
+
+    Returns ``(sentences, remainder)`` where ``sentences`` are
+    ready-to-speak fragments and ``remainder`` is the trailing text not
+    yet ending in a boundary (carried into the next call). A boundary is
+    only honored once the fragment is at least ``_MIN_SENTENCE_CHARS``
+    long, so abbreviations don't fragment playback.
+    """
+    sentences: list[str] = []
+    start = 0
+    for m in _SENTENCE_END.finditer(buf):
+        end = m.end(1)  # include the punctuation, drop the following space
+        fragment = buf[start:end].strip()
+        if len(fragment) >= _MIN_SENTENCE_CHARS:
+            sentences.append(fragment)
+            start = m.end()  # skip the whitespace after the boundary
+    return sentences, buf[start:]
+
+
+def _split_sentences_final(text: str) -> list[str]:
+    """Split a complete reply into ready-to-speak sentences (used when the
+    full text is already in hand, e.g. speculative generation)."""
+    sentences, tail = _split_sentences_buffer(text)
+    tail = tail.strip()
+    if tail:
+        sentences.append(tail)
+    return sentences
 
 
 async def _ensure_person(graph_writer: GremlinWriter, coord: "Coordinator") -> None:
