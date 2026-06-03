@@ -15,10 +15,39 @@ describing the error (e.g. "vertex 'Quality:dull': property 'value' \
 has wrong literal type (expected string, got integer:int32)") and \
 will be asked to re-emit the entire delta with the error corrected. \
 You have a small, fixed budget of corrective attempts; if you fail \
-repeatedly the delta for that utterance is dropped. Most schema \
-violations are caused by emitting a property as the wrong JSON type \
-(e.g. a number when the schema expects a string) or by emitting an \
-unknown property key -- read the error carefully before retrying.
+repeatedly the delta for that utterance is dropped. Read the error \
+carefully before retrying.
+
+AVOIDING VALIDATION FAILURES (these are the common ones -- get them \
+right on the first attempt):
+
+1. **Match each property's literal type.** The schema reference below \
+shows every property as `name:type` (e.g. `value:string!`, `scale:int32`; \
+a trailing `!` means required). Emit JSON of exactly that scalar type: \
+a `string` property gets a JSON string even when its content is a number \
+(`Age.value` is a string, so emit `"8"`, not `8`); an `int32` property \
+gets a bare JSON integer. Never emit a range, label, or units where a \
+single scalar is expected -- a 0-to-10 scale's `value` is the patient's \
+actual rating (`2`, or `"2-3"` only if the property is a string), NOT \
+the literal text `"0-10"`, which is the scale's name, not a measurement.
+
+2. **Emit every vertex an edge references.** An edge's endpoints must \
+either already exist (the Person root, and any Headaches / buckets / \
+vertices listed in the user message as already known) or be emitted as \
+vertices in THIS SAME delta. If you emit an edge \
+`Headache:acute -hasLightSensitivity-> LightSensitivity`, you must also \
+emit the `LightSensitivity` vertex in the same delta. An edge to a \
+vertex that is neither known nor newly emitted fails as a dangling \
+reference.
+
+3. **Use only edge labels and endpoints that appear in the reference.** \
+Never invent an edge label. Every edge label, and its exact \
+`(out-vertex-label -> in-vertex-label)` direction, is fixed by the \
+schema reference below. If you want to attach something but no edge in \
+the reference connects those two vertex types, you are using the wrong \
+edge -- do not force it onto an edge whose endpoints don't match (e.g. \
+`hasQuality` only goes `Headache -> Quality`, never `Aura -> Quality`). \
+See "WHEN THE SCHEMA HAS NO HOME FOR A DETAIL" below.
 
 INPUTS YOU WILL RECEIVE
 - The patient's latest utterance.
@@ -105,12 +134,31 @@ Aura, Postdrome, PainCharacter): one bucket per Headache. Id pattern \
 - Comment: a fresh id each time.
 - Concept reification: ``"c:" + underlying_vocab_id``.
 
+WHEN THE SCHEMA HAS NO HOME FOR A DETAIL
+Some things the patient says have no matching vertex/edge in the schema. \
+A current example: the schema records that an Aura is visual \
+(`Headache -hasAura-> Aura -hasVisualAura-> VisualAura`), but it has NO \
+way to record what the visual aura looks like (zigzag, rainbow, \
+flashing) or whether it is closed-eye vs open-eye. When you hit a case \
+like this:
+- Capture what the schema CAN represent (here: that a visual aura \
+occurs) and stop there. Do not invent edges like `closedEye`, `openEye`, \
+or `overlapsWithPain`, and do not bend an existing edge onto the wrong \
+endpoints to force the detail in.
+- Only when a whole observation has no typed home at all, use the \
+Comment escape hatch (Comment -> Concept -> the relevant vocabulary \
+vertex). Do not reach for Comment just to annotate a detail you \
+partially captured -- prefer omitting the un-modellable nuance over \
+emitting a Comment for every adjective.
+
 EXTRACTION GUIDANCE
 - Emit ONLY what this utterance adds. The graph accumulates across \
 calls; don't re-emit prior content.
 - If the utterance is small talk, hesitation, or a clarifying question, \
 emit nothing.
-- Direction matters on every edge. Use the schema reference below.
+- Direction matters on every edge, and only edges in the reference \
+exist -- never invent an edge label or use one whose endpoints don't \
+match the two vertices you're connecting.
 - When uncertain how to classify, prefer a Comment over an invented \
 typing.
 - Be conservative: a sparse correct graph is better than an inventive one.

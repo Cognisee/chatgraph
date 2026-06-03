@@ -120,6 +120,50 @@ def _allowlists_from_schema(schema: dict) -> tuple[
     return allowed_vertex_props, allowed_edges, allowed_edge_props, vocabulary
 
 
+def _literal_type_name(value: dict) -> str:
+    """Render a property's JSON literal-type node as a short string.
+
+    The schema encodes a property type as a single-key dict, e.g.
+    ``{"string": {}}`` -> ``"string"`` or ``{"integer": {"int32": {}}}``
+    -> ``"int32"``. Returns the innermost type name so the prompt shows
+    the model exactly what JSON scalar a property expects (the chief
+    cause of validation retries is emitting the wrong scalar type).
+    """
+    node = value
+    name = "?"
+    # Walk down single-key wrapper dicts to the most specific name.
+    while isinstance(node, dict) and node:
+        name = next(iter(node))
+        node = node[name]
+    return name
+
+
+def _prop_types_from_schema(
+    schema: dict,
+) -> dict[str, dict[str, tuple[str, bool]]]:
+    """Map ``element-label -> {prop-key: (type-name, required)}`` for both
+    vertices and edges, derived from the same parsed schema JSON used by
+    ``_allowlists_from_schema``.
+
+    Used only to annotate the prompt's schema reference with literal
+    types and required-ness; the allow-list/membership logic still uses
+    the plain property-name sets, so this carries no risk to the
+    materializer or tool spec.
+    """
+    out: dict[str, dict[str, tuple[str, bool]]] = {}
+    for section in ("vertices", "edges"):
+        for entry in schema[section]:
+            label = entry["@key"]
+            detail: dict[str, tuple[str, bool]] = {}
+            for p in entry["@value"].get("properties", []):
+                detail[p["key"]] = (
+                    _literal_type_name(p.get("value", {})),
+                    bool(p.get("required", False)),
+                )
+            out[label] = detail
+    return out
+
+
 @dataclass
 class RollingContext:
     """Short conversational context for the extractor.
@@ -249,16 +293,36 @@ def _format_schema_reference(
     allowed_vertex_props: dict[str, set[str]],
     allowed_edges: dict[str, tuple[str, str]],
     allowed_edge_props: dict[str, set[str]],
+    prop_types: dict[str, dict[str, tuple[str, bool]]] | None = None,
 ) -> str:
     """Render the schema as a compact reference appended to the system
     prompt. Auto-generated so it stays in sync with the JSON.
+
+    When ``prop_types`` (label -> {prop: (type-name, required)}) is given,
+    each property is annotated with its literal type and a trailing ``!``
+    if required, e.g. ``value:string!, scale:int32``. This tells the model
+    the exact JSON scalar a property expects up front, which is the chief
+    cause of validation retries.
     """
+    prop_types = prop_types or {}
+
+    def render_props(label: str, props: list[str]) -> str:
+        detail = prop_types.get(label, {})
+        rendered = []
+        for p in props:
+            if p in detail:
+                type_name, required = detail[p]
+                rendered.append(f"{p}:{type_name}{'!' if required else ''}")
+            else:
+                rendered.append(p)
+        return ", ".join(rendered)
+
     # Vertex labels with their property list.
     v_lines = []
     for label in sorted(allowed_vertex_props):
         props = sorted(allowed_vertex_props[label])
         if props:
-            v_lines.append(f"  {label}: properties = {{{', '.join(props)}}}")
+            v_lines.append(f"  {label}: properties = {{{render_props(label, props)}}}")
         else:
             v_lines.append(f"  {label}: (no properties)")
 
@@ -274,13 +338,14 @@ def _format_schema_reference(
             props = sorted(allowed_edge_props.get(elabel, ()))
             if props:
                 e_lines.append(
-                    f"  {elabel}: {out} -> {in_}  (edge props: {', '.join(props)})"
+                    f"  {elabel}: {out} -> {in_}  "
+                    f"(edge props: {render_props(elabel, props)})"
                 )
             else:
                 e_lines.append(f"  {elabel}: {out} -> {in_}")
 
     return (
-        "VERTEX TYPES (label : allowed properties):\n"
+        "VERTEX TYPES (label : allowed properties; prop:type, ! = required):\n"
         + "\n".join(v_lines)
         + "\n\nEDGE TYPES (label : out-vertex -> in-vertex; edge props in parens):\n"
         + "\n".join(e_lines)
@@ -437,6 +502,7 @@ class Extractor:
             self._allowed_edge_props,
             self._vocabulary_labels,
         ) = _allowlists_from_schema(schema_json)
+        self._prop_types = _prop_types_from_schema(schema_json)
         self._schema = decode_graph_schema(schema_json)
 
         # System prompt = domain-supplied intro + schema reference.
@@ -444,6 +510,7 @@ class Extractor:
             self._allowed_vertex_props,
             self._allowed_edges,
             self._allowed_edge_props,
+            self._prop_types,
         )
 
         # Tool spec is schema-driven (enum values for label come from
