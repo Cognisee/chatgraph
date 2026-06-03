@@ -679,8 +679,13 @@ async def run() -> int:
         )
     )
     handler.flush = lambda: sys.stderr.flush()  # type: ignore[method-assign]
+    # The console handler carries the user's chosen verbosity; the root
+    # logger sits at DEBUG so the per-session .log file handler (attached
+    # later, when the TranscriptWriter opens) can capture everything
+    # regardless of what the console shows.
+    handler.setLevel(getattr(logging, log_level, logging.INFO))
     logging.basicConfig(
-        level=getattr(logging, log_level, logging.INFO),
+        level=logging.DEBUG,
         handlers=[handler],
         force=True,
     )
@@ -729,6 +734,12 @@ async def run() -> int:
     print()
 
     with TranscriptWriter() as transcript:
+        # Route the full diagnostic log into the session's .log file (the
+        # console handler keeps the user's -v/-vv level; the file gets
+        # everything at DEBUG). Detached in TranscriptWriter.close().
+        logging.getLogger().addHandler(transcript.log_handler)
+        log.info("session log: %s", transcript.log_path)
+
         # Order matters: bring up Deepgram first so a stalled WebSocket
         # handshake fails fast (it has a 15s timeout) before we touch the
         # audio hardware. Audio streams come up after STT is ready.
@@ -860,6 +871,7 @@ async def run() -> int:
     print()
     print(f"Transcript: {transcript.txt_path}")
     print(f"           {transcript.jsonl_path}")
+    print(f"Log:        {transcript.log_path}")
     return 0
 
 

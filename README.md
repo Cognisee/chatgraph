@@ -315,18 +315,30 @@ Telling the agent you're done ("that's all", "let's stop", etc.) flips
 it into acknowledge-only mode; resuming substantive content flips it
 back.
 
-Press **Ctrl-C** to end the session. Transcript paths are printed on
-exit:
+Press **Ctrl-C** to end the session. Each session writes three files
+under `transcripts/`, sharing one timestamp:
 
 ```
 Transcript: transcripts/20260515-074011.txt
             transcripts/20260515-074011.jsonl
+Log:        transcripts/20260515-074011.log
 ```
 
 - `.txt` — human-readable, `speaker: text` paragraphs, agent turns
   marked `[interrupted]` if they were cut short.
 - `.jsonl` — one utterance per line with `ts_start` / `ts_end` /
   `interrupted` fields. Suitable for downstream tooling.
+- `.log` — the raw diagnostic log for the session (everything at DEBUG
+  and up, plain text, no color codes), regardless of the console
+  verbosity set by `-v` / `-vv`. The `.txt` and `.jsonl` stay clean
+  conversation transcripts; operational detail and any errors — e.g. the
+  extractor's per-utterance validation failures — go here instead, so
+  they're captured durably rather than only scrolling past on screen.
+
+The three files are always written; the paths above are printed on a
+clean exit. Ending with Ctrl-C closes and flushes all three (the data is
+safe) but skips the closing printout — the files are in `transcripts/`
+under the session timestamp regardless.
 
 The Gremlin graph keeps accumulating across sessions until you pass
 `--fresh`. Connect a viewer like gdotv to `ws://localhost:8182/gremlin`
@@ -388,7 +400,7 @@ chatgraph/
           agent.py               # Claude Sonnet streaming, domain-agnostic
           extractor.py           # Claude Haiku per-utterance delta; bound to a domain
           graph_writer.py        # GremlinWriter: serialized write queue, load_graph, drop_all
-          transcript.py          # .txt + .jsonl writer (append-only, flush-per-write)
+          transcript.py          # .txt + .jsonl + .log writer (append-only, flush-per-write)
           main.py                # Coordinator + CLI; domain positional + --fresh / -v / -vv
     test/python/chatgraph/
       test_extractor_smoke.py    # end-to-end extractor smoke test (costs cents)
