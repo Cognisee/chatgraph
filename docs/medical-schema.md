@@ -91,6 +91,14 @@ unilateral and co-occurring with pain.
 `MotorAura` (weakness — hemiplegic), `BrainstemAura` (vertigo, dysarthria,
 ataxia), `RetinalAura` (monocular).
 
+`VisualAura` is the one aura subtype that carries its own properties,
+describing what the patient actually sees: `pattern` (free text —
+"zigzag", "fortification spectra", "crescent"), `colors` ("rainbow",
+"white"), and the booleans `scintillating` (flashing/shimmering),
+`photopsia` (flashes of light), `scotoma` (blind spot), `fortification`
+(zigzag spectra), plus `positiveNegative` and a free-text `note`. The
+other subtypes are bare-label presence markers.
+
 **Prodromal symptoms** (`Prodrome --hasX-->`):
 
 `Fatigue`, `MoodChange`, `CognitiveSlowness`, `FoodCraving`, `Yawning`,

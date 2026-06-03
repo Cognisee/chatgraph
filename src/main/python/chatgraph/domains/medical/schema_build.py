@@ -193,8 +193,11 @@ BARE_AUTONOMIC_FEATURES = (
     CONJUNCTIVAL_INJECTION, LACRIMATION, NASAL_CONGESTION, RHINORRHEA,
     EYELID_EDEMA, FACIAL_SWEATING, PTOSIS, MIOSIS, RESTLESSNESS, EAR_FULLNESS,
 )
+# VisualAura is NOT bare-label: it carries appearance properties
+# (see the visual_aura vertex_type in build_schema). The other aura
+# subtypes remain bare-label presence markers.
 BARE_AURA_TYPES = (
-    VISUAL_AURA, SENSORY_AURA, SPEECH_AURA, MOTOR_AURA, BRAINSTEM_AURA,
+    SENSORY_AURA, SPEECH_AURA, MOTOR_AURA, BRAINSTEM_AURA,
     RETINAL_AURA,
 )
 BARE_PRODROMAL_SYMPTOMS = (
@@ -215,6 +218,10 @@ VOCABULARY_LABELS = (
     PRODROME, AURA, POSTDROME,
     *BARE_PAIN_SYMPTOMS,
     *BARE_AUTONOMIC_FEATURES,
+    # VisualAura was moved out of BARE_AURA_TYPES (it now carries
+    # appearance properties) but is still a reifiable concept, so list
+    # it explicitly here -- same as other propertied vocab (Quality, etc).
+    VISUAL_AURA,
     *BARE_AURA_TYPES,
     *BARE_PRODROMAL_SYMPTOMS,
     *BARE_RED_FLAGS,
@@ -316,6 +323,29 @@ def build_schema():
         .property("typicalMinutes", i, False)
         # does the aura overlap with the pain or strictly precede it
         .property("overlapsWithPain", b, False)
+        .property("note", s, False)
+        .build()
+    )
+
+    # VisualAura: the concrete visual-aura subtype, carrying what the
+    # patient actually sees. Bare-label was too lossy -- "zigzag lines,
+    # flashing rainbows" had nowhere to go. Properties follow ICHD-3
+    # visual-aura descriptors; all optional and free-text/boolean so the
+    # extractor can fill in whatever the patient describes.
+    visual_aura = (
+        vertex_type(VISUAL_AURA, s)
+        # free-text shape/pattern: "zigzag", "fortification spectra",
+        # "crescent", "blind spot", etc.
+        .property("pattern", s, False)
+        # whether the phenomenon is colored, and which colors
+        # ("rainbow", "white", "monochrome")
+        .property("colors", s, False)
+        .property("scintillating", b, False)   # flashing / shimmering / sparkling
+        .property("photopsia", b, False)        # flashes / sparks of light
+        .property("scotoma", b, False)          # area of lost vision / blind spot
+        .property("fortification", b, False)    # zigzag fortification spectra
+        # positive (added, e.g. flashes) vs negative (lost vision) phenomena
+        .property("positiveNegative", s, False)
         .property("note", s, False)
         .build()
     )
@@ -538,6 +568,7 @@ def build_schema():
         person,
         headache, classification,
         prodrome, aura, postdrome, pain_character,
+        visual_aura,
         *bare_label_vts,
         headache_triggers, *category_trigger_vts,
         alleviating_factors, *relief_category_vts,

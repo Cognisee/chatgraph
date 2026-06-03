@@ -273,6 +273,73 @@
       }
     },
     {
+      "@key": "VisualAura",
+      "@value": {
+        "label": "VisualAura",
+        "id": {
+          "string": {}
+        },
+        "properties": [
+          {
+            "key": "pattern",
+            "value": {
+              "string": {}
+            },
+            "required": false
+          },
+          {
+            "key": "colors",
+            "value": {
+              "string": {}
+            },
+            "required": false
+          },
+          {
+            "key": "scintillating",
+            "value": {
+              "boolean": {}
+            },
+            "required": false
+          },
+          {
+            "key": "photopsia",
+            "value": {
+              "boolean": {}
+            },
+            "required": false
+          },
+          {
+            "key": "scotoma",
+            "value": {
+              "boolean": {}
+            },
+            "required": false
+          },
+          {
+            "key": "fortification",
+            "value": {
+              "boolean": {}
+            },
+            "required": false
+          },
+          {
+            "key": "positiveNegative",
+            "value": {
+              "string": {}
+            },
+            "required": false
+          },
+          {
+            "key": "note",
+            "value": {
+              "string": {}
+            },
+            "required": false
+          }
+        ]
+      }
+    },
+    {
       "@key": "Nausea",
       "@value": {
         "label": "Nausea",
@@ -476,16 +543,6 @@
       "@key": "EarFullness",
       "@value": {
         "label": "EarFullness",
-        "id": {
-          "string": {}
-        },
-        "properties": []
-      }
-    },
-    {
-      "@key": "VisualAura",
-      "@value": {
-        "label": "VisualAura",
         "id": {
           "string": {}
         },

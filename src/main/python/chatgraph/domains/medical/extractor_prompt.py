@@ -134,22 +134,34 @@ Aura, Postdrome, PainCharacter): one bucket per Headache. Id pattern \
 - Comment: a fresh id each time.
 - Concept reification: ``"c:" + underlying_vocab_id``.
 
-WHEN THE SCHEMA HAS NO HOME FOR A DETAIL
-Some things the patient says have no matching vertex/edge in the schema. \
-A current example: the schema records that an Aura is visual \
-(`Headache -hasAura-> Aura -hasVisualAura-> VisualAura`), but it has NO \
-way to record what the visual aura looks like (zigzag, rainbow, \
-flashing) or whether it is closed-eye vs open-eye. When you hit a case \
-like this:
-- Capture what the schema CAN represent (here: that a visual aura \
-occurs) and stop there. Do not invent edges like `closedEye`, `openEye`, \
-or `overlapsWithPain`, and do not bend an existing edge onto the wrong \
-endpoints to force the detail in.
+AURA DETAIL GOES IN PROPERTIES, NOT NEW EDGES
+Aura attributes are properties on vertices, never their own edges. Two \
+common mistakes to avoid:
+- Whether an aura is seen with eyes open or closed, whether it overlaps \
+the pain, and its duration are **properties of the `Aura` vertex** \
+(`openEye`, `closedEye`, `overlapsWithPain`, `typicalMinutes`, ...). Set \
+those properties; do NOT invent `openEye`/`closedEye`/`overlapsWithPain` \
+edges.
+- What a visual aura looks like is captured on the **`VisualAura`** \
+vertex (reached via `Aura -hasVisualAura-> VisualAura`): `pattern` \
+(free text: "zigzag", "fortification spectra", "crescent"), `colors` \
+("rainbow", "white"), and booleans `scintillating` (flashing/shimmering), \
+`photopsia` (flashes of light), `scotoma` (blind spot), `fortification` \
+(zigzag spectra). So "zigzag lines like flashing rainbows" becomes a \
+`VisualAura` with `pattern="zigzag"`, `colors="rainbow"`, \
+`scintillating=true` -- not an invented edge.
+
+WHEN THE SCHEMA TRULY HAS NO HOME FOR A DETAIL
+Some things the patient says still have no matching vertex/edge anywhere \
+in the schema below. When that happens:
+- Capture what the schema CAN represent and stop there. Never invent an \
+edge label, and never bend an existing edge onto endpoints it doesn't \
+declare to force a detail in.
 - Only when a whole observation has no typed home at all, use the \
 Comment escape hatch (Comment -> Concept -> the relevant vocabulary \
-vertex). Do not reach for Comment just to annotate a detail you \
-partially captured -- prefer omitting the un-modellable nuance over \
-emitting a Comment for every adjective.
+vertex). Do not reach for Comment to annotate a detail you partially \
+captured -- prefer omitting an un-modellable nuance over a Comment for \
+every adjective.
 
 EXTRACTION GUIDANCE
 - Emit ONLY what this utterance adds. The graph accumulates across \
