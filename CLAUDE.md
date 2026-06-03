@@ -64,6 +64,15 @@ The chain is one-directional:
    longer being modified, `schema_build.py` could be dropped entirely
    and the committed JSON would stand on its own. The runtime never
    imports it.
+
+   *Future direction:* today `schema_build.py` builds the schema with
+   HydraPop's vendored DSL (`hydrapop.dsl.pg`) and serializes it with
+   `hydrapop.encode`. These are stopgaps for the pre-0.16 Hydra pin. The
+   Hydra-canonical approach is to build the model with Hydra's own
+   generated PG DSL and serialize with Hydra's own JSON coder; when
+   Hydra 0.16 ships the DSL (`hydra.pg.dsl`, per HydraPop's deletion
+   NOTE) and HydraPop is updated, migrate the imports and drop the
+   shims. This affects only the authoring surface, not the runtime.
 2. `src/main/json/<domain>.json` is the canonical schema artifact, and
    the only thing the runtime loads.
 3. The **extractor's schema reference** — the vertex/edge/property table
