@@ -541,7 +541,9 @@ class Coordinator:
                 sentence = sentence.strip()
                 spoken.append(sentence)
                 if not printed_header:
-                    print(f"agent: {sentence}", end="", flush=True)
+                    # Leading blank line separates the agent reply from the
+                    # preceding patient line in the terminal echo.
+                    print(f"\nagent: {sentence}", end="", flush=True)
                     printed_header = True
                 else:
                     print(f" {sentence}", end="", flush=True)
