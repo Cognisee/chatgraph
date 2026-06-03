@@ -6,6 +6,18 @@ Offline schema-authoring step. Run via::
 
 Output: ``src/main/json/medical.json`` at the project root.
 
+Role: this module is a *convenience authoring tool*, not a runtime
+dependency. Its only job is to produce ``medical.json`` ergonomically --
+expressing the schema as readable Python (helpers, shared constants,
+loops over symptom lists) instead of hand-writing a large JSON file. The
+runtime never imports it; ``medical.json`` is the single source of truth
+that the application loads (see the "Schema: one source of truth" section
+in ``CLAUDE.md``). Consequently this file is disposable: once the schema
+is finalized and we no longer expect to modify it, ``schema_build.py``
+could be dropped entirely and the committed JSON would stand on its own.
+Until then it is the editing surface -- change the schema here and
+regenerate, never hand-edit the JSON.
+
 Design notes
 ------------
 

@@ -281,6 +281,13 @@ Writes `src/main/json/<domain>.json`. The JSON is committed; re-running
 regenerates it byte-identically unless you've edited the domain's
 `schema_build.py`.
 
+`schema_build.py` is just a convenience authoring tool — a readable
+Python way to produce the JSON — not something the runtime loads. The
+committed JSON is the source of truth; once a schema is finalized,
+`schema_build.py` could be discarded and the JSON would stand on its
+own. Until then, edit the schema there and regenerate; never hand-edit
+the JSON.
+
 ## Verify the stack
 
 ```bash

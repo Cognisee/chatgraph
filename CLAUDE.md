@@ -53,10 +53,17 @@ parallel copy of it by hand.
 
 The chain is one-directional:
 
-1. `domains/<name>/schema_build.py` is how the JSON is *authored* — a
-   Python DSL program. It is the editing surface, not a second source:
-   running `chatgraph-build-schema <name>` regenerates the JSON from it.
-   Re-running with no source change reproduces the JSON byte-for-byte.
+1. `domains/<name>/schema_build.py` is a *convenience authoring tool*,
+   not a second source of truth and not a runtime dependency. Its only
+   job is to produce the JSON ergonomically — expressing the schema as
+   readable Python (helpers, shared constants, loops) instead of
+   hand-writing a large JSON file. `chatgraph-build-schema <name>`
+   regenerates the JSON from it; re-running with no source change
+   reproduces the JSON byte-for-byte. Because it is purely an editing
+   surface, it is **disposable**: once a schema is finalized and no
+   longer being modified, `schema_build.py` could be dropped entirely
+   and the committed JSON would stand on its own. The runtime never
+   imports it.
 2. `src/main/json/<domain>.json` is the canonical schema artifact, and
    the only thing the runtime loads.
 3. The **extractor's schema reference** — the vertex/edge/property table
