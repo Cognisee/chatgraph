@@ -42,10 +42,16 @@ Each materialised delta is validated against the domain's typed
 error is echoed back to Claude Haiku as a ``tool_result`` and the
 call is retried, up to ``MAX_EXTRACTION_ATTEMPTS`` total attempts.
 After exhausting the budget the utterance's delta is dropped (logged
-but not written) and the conversation continues. The validation check
-deliberately skips cross-graph endpoint errors -- a delta's edges
-usually reference prior-turn vertices whose label the validator
-doesn't have visibility into.
+but not written) and the conversation continues.
+
+A delta's edges usually reference vertices in the *live* graph from
+prior turns (most notably the ``Person`` root that every ``reports``
+edge points out of). Validation resolves those endpoints against
+``RollingContext.vertex_labels`` -- an id->label cache seeded from the
+live graph at session start and grown as each validated delta is
+written -- so cross-graph edges validate (by label) instead of being
+falsely rejected as dangling. See ``chatgraph.chat.validation`` for the
+full rationale.
 
 Failures (API errors, malformed extractions, exhausted retries) are
 logged and swallowed -- the conversation never blocks on the graph.
@@ -150,11 +156,27 @@ class RollingContext:
     # extractor should emit a `triggers` edge from BOTH Headaches to the
     # SAME bucket vertex rather than creating parallel buckets.
     known_buckets: dict = field(default_factory=dict)
+    # Vertex id -> vertex-label string for every vertex believed to exist
+    # in the live graph: seeded once from the graph at session start
+    # (incl. the Person root) and grown as each validated delta is
+    # written. Used by validate_delta to resolve edge endpoints that
+    # reference live-graph vertices (e.g. the `reports` edge out of the
+    # Person root) without falsely rejecting them as dangling. See
+    # chatgraph.chat.validation for the full rationale.
+    vertex_labels: dict = field(default_factory=dict)
 
     BUCKET_LABELS = (
         "HeadacheTriggers", "AlleviatingFactors",
         "Prodrome", "Aura", "Postdrome", "PainCharacter",
     )
+
+    def __post_init__(self) -> None:
+        # If constructed with a person_id, treat the Person root as a
+        # known live-graph vertex so the first `reports` edge resolves.
+        # (The runtime sets person_id via _ensure_person, which seeds the
+        # cache itself; this covers callers that pass it to __init__.)
+        if self.person_id and self.person_id not in self.vertex_labels:
+            self.vertex_labels[self.person_id] = "Person"
 
     def add(self, speaker: str, text: str) -> None:
         self.window.append({"speaker": speaker, "text": text})
@@ -166,6 +188,17 @@ class RollingContext:
         """Record a Headache id so the extractor knows to reuse it."""
         self.known_headaches.setdefault(headache_id, label or "")
         self.current_headache_id = headache_id
+
+    def register_vertices(self, vertices) -> None:
+        """Record (id -> label) for every vertex now believed to be in the
+        live graph, so subsequent deltas can anchor edges to them.
+
+        ``vertices`` is an iterable of ``hydra.pg.model.Vertex``. Called
+        once at session start (seeded from the live graph) and after each
+        validated delta is written.
+        """
+        for v in vertices:
+            self.vertex_labels[v.id.value] = v.label.value
 
     def register_bucket(
         self, bucket_label: str, bucket_id: str, headache_id: str | None = None
@@ -477,12 +510,18 @@ class Extractor:
                 log.exception("Extractor: failed to materialize delta")
                 return ExtractionResult(delta=_empty_graph())
 
-            validation = validate_delta(self._schema, result.delta)
+            validation = validate_delta(
+                self._schema, result.delta, context.vertex_labels
+            )
             if validation.is_valid:
                 if attempt > 1:
                     log.info(
                         "Extractor: delta valid after %d attempt(s)", attempt
                     )
+                # The delta is about to be written, so its vertices join
+                # the live-graph set that future deltas can anchor edges
+                # to (e.g. a later turn's edge into this turn's Headache).
+                context.register_vertices(result.delta.vertices.values())
                 return result
 
             # Result's repr() produces "INVALID - <typed error dump>", which

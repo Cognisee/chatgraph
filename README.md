@@ -67,20 +67,35 @@ on dedicated worker threads bridged into the event loop.
   are serialized so concurrent extractions can't race their edges past
   each other's vertices.
 
-- **Schema validation.** Before each delta is written, it is validated
-  against the domain's typed Hydra `GraphSchema` via
-  `hydra.validate.pg.validate_graph`. The check catches literal-type
-  mismatches, missing required properties, and unknown labels that the
-  tool-spec enum and the materializer's allow-lists let through (e.g.
-  a property declared `int32` in the schema arriving as a string). If
-  validation fails, the typed error is echoed back to Claude Haiku as
-  a `tool_result` and the extractor is asked to correct its output;
-  the call retries up to three attempts total. After three consecutive
-  failures the utterance's delta is dropped (logged but not written),
-  and the conversation continues uninterrupted. Cross-turn edge
-  endpoints — where the edge references a vertex from a previous turn,
-  not in the current delta — are deliberately not validated, because
-  the live graph in Gremlin Server is the source of truth for those.
+- **Incremental graph validation.** Before each delta is written, it is
+  validated against the domain's typed Hydra `GraphSchema`
+  (`chatgraph.chat.validation.validate_delta`). The check catches
+  literal-type mismatches, missing required properties, and unknown
+  labels that the tool-spec enum and the materializer's allow-lists let
+  through (e.g. a property declared `int32` in the schema arriving as a
+  string). If validation fails, the typed error is echoed back to Claude
+  Haiku as a `tool_result` and the extractor is asked to correct its
+  output; the call retries up to three attempts total. After three
+  consecutive failures the utterance's delta is dropped (logged but not
+  written), and the conversation continues uninterrupted.
+
+  The subtlety is that a delta is a *partial* graph: its edges routinely
+  point at vertices that live only in the graph from earlier turns — the
+  `Person` root that every `reports` edge starts from, a `Headache`
+  named two turns ago, a shared trigger bucket. Hydra's
+  `validate_graph` resolves every edge endpoint against the single graph
+  it is handed, so validating a delta on its own rejects all of those
+  edges as dangling (`OutVertexNotFound`). To validate incrementally, we
+  keep an `id → label` cache of every vertex believed to be in the live
+  graph — seeded once from the graph at session start (including the
+  `Person` root) and grown as each validated delta is written — and
+  resolve edge endpoints against the delta *plus* that cache. Endpoint
+  checks are label-only (an edge type pins its `(out-label, in-label)`
+  pair), so the cache needs labels, not full vertices; an id in neither
+  the delta nor the cache is a genuine dangling reference and is still
+  reported. See `src/main/python/chatgraph/chat/validation.py` for the
+  full rationale, including why the known vertices can't simply be merged
+  into the delta before calling `validate_graph`.
 
 - **Schema / typed property graph.** The schema is a
   [Hydra](https://github.com/CategoricalData/hydra) `GraphSchema`.

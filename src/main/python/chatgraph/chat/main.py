@@ -580,6 +580,11 @@ async def _ensure_person(graph_writer: GremlinWriter, coord: "Coordinator") -> N
 
     graph = await graph_writer.load_graph()
     if graph is not None:
+        # Seed the label cache from every vertex already in the live
+        # graph, so edges in the first extracted delta can anchor to them
+        # (validate_delta resolves endpoints against this set). See
+        # chatgraph.chat.validation for why this is needed.
+        coord._rolling.register_vertices(graph.vertices.values())  # noqa: SLF001
         existing_persons = [
             v for v in graph.vertices.values() if v.label.value == "Person"
         ]
@@ -603,6 +608,9 @@ async def _ensure_person(graph_writer: GremlinWriter, coord: "Coordinator") -> N
     )
     graph_writer.submit(delta)
     coord._rolling.person_id = person_id  # noqa: SLF001
+    # The new Person root is now in the live graph; register it so the
+    # first turn's `reports` edge resolves its out-vertex.
+    coord._rolling.register_vertices([person])  # noqa: SLF001
     log.info("Person vertex created: %s", person_id)
 
 
