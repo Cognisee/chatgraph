@@ -8,3 +8,4 @@ transcripts/
 .ruff_cache/
 dist/
 build/
+.idea/
