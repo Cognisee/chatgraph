@@ -38,6 +38,37 @@ log = logging.getLogger(__name__)
 MODEL = "tts-1"
 DEFAULT_VOICE = "nova"
 
+# Playback speed multiplier passed to OpenAI TTS (tts-1 accepts 0.25-4.0;
+# 1.0 is normal pace). Default is a touch brisk so the agent sounds
+# punchy rather than ponderous; override with CHATGRAPH_TTS_SPEED.
+DEFAULT_SPEED = 1.15
+_SPEED_MIN = 0.25
+_SPEED_MAX = 4.0
+
+
+def _resolve_speed() -> float:
+    """Read CHATGRAPH_TTS_SPEED, falling back to DEFAULT_SPEED, clamped to
+    the range OpenAI accepts. A malformed value logs a warning and uses
+    the default rather than crashing the session."""
+    raw = os.environ.get("CHATGRAPH_TTS_SPEED")
+    if not raw:
+        return DEFAULT_SPEED
+    try:
+        speed = float(raw)
+    except ValueError:
+        log.warning(
+            "CHATGRAPH_TTS_SPEED=%r is not a number; using default %.2f",
+            raw, DEFAULT_SPEED,
+        )
+        return DEFAULT_SPEED
+    clamped = max(_SPEED_MIN, min(_SPEED_MAX, speed))
+    if clamped != speed:
+        log.warning(
+            "CHATGRAPH_TTS_SPEED=%s out of range [%.2f, %.2f]; clamped to %.2f",
+            speed, _SPEED_MIN, _SPEED_MAX, clamped,
+        )
+    return clamped
+
 # OpenAI returns 24 kHz PCM when response_format="pcm". We resample down
 # to 16 kHz for the AudioOutput at write time.
 OPENAI_SAMPLE_RATE = 24_000
@@ -73,6 +104,7 @@ class OpenAITTS:
         # thread to avoid contending for the asyncio loop's attention.
         self._client = OpenAI(api_key=api_key)
         self._voice = voice or os.environ.get("CHATGRAPH_TTS_VOICE") or DEFAULT_VOICE
+        self._speed = _resolve_speed()
 
     async def warmup(self) -> None:
         """Fire a tiny TTS request to warm OpenAI's TLS connection and
@@ -87,7 +119,8 @@ class OpenAITTS:
         def _warm() -> None:
             try:
                 with self._client.audio.speech.with_streaming_response.create(
-                    model=MODEL, voice=self._voice, input=".", response_format="pcm",
+                    model=MODEL, voice=self._voice, input=".",
+                    response_format="pcm", speed=self._speed,
                 ) as response:
                     # Drain the body so the connection is fully primed.
                     for _ in response.iter_bytes(chunk_size=4096):
@@ -120,6 +153,7 @@ class OpenAITTS:
                     voice=self._voice,
                     input=text,
                     response_format="pcm",
+                    speed=self._speed,
                 ) as response:
                     log.info("OpenAITTS producer: HTTP response opened, draining body")
                     for chunk in response.iter_bytes(chunk_size=4096):

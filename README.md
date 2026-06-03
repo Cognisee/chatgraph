@@ -367,6 +367,7 @@ Environment variables (in `.env` or your shell):
 | `CHATGRAPH_AGENT_MODEL` | `claude-sonnet-4-6` | Claude model id for the interviewer. |
 | `CHATGRAPH_EXTRACTOR_MODEL` | `claude-haiku-4-5-20251001` | Claude model id for the extractor. |
 | `CHATGRAPH_TTS_VOICE` | `nova` | OpenAI TTS voice (e.g. `alloy` / `echo` / `nova` / `shimmer` / `verse`). `tts-1` accepts the classic six; `gpt-4o-mini-tts` adds more. |
+| `CHATGRAPH_TTS_SPEED` | `1.15` | Speech-rate multiplier for OpenAI TTS (`0.25`–`4.0`; `1.0` is normal pace). The default is slightly brisk; raise toward `1.3` for a punchier demo, lower toward `1.0` for a calmer read. Out-of-range values are clamped. |
 | `CHATGRAPH_LOG_LEVEL` | (unset) | Overrides the `-v` / `-vv` flags. Set to `INFO` or `DEBUG` if you want. |
 | `HYDRAPOP_HOME` | (required) | Absolute path to a local HydraPop clone. |
 
