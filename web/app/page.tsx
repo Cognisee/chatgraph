@@ -192,13 +192,26 @@ export default function Home() {
       realtimeRef.current = null;
       return;
     }
+    if (!session) return;
+    const currentSession = session;
+    const initialAssistantText =
+      currentSession.messages.length === 1 && currentSession.messages[0]?.role === "assistant"
+        ? currentSession.messages[0].content
+        : undefined;
+    let spokeInitialAssistantText = false;
     stopSpeaking();
     recognitionRef.current?.stop();
     setIsListening(false);
     setWarnings([]);
 
     const realtime = new OpenAIRealtimeSession({
-      onStatus: setRealtimeStatus,
+      onStatus: (status) => {
+        setRealtimeStatus(status);
+        if (status === "connected" && initialAssistantText && !spokeInitialAssistantText) {
+          spokeInitialAssistantText = true;
+          void speak(initialAssistantText);
+        }
+      },
       onError: (message) => setWarnings([message]),
       onUserTranscript: (text) => {
         const next = appendMessage("user", text);

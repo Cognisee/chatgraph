@@ -5,6 +5,7 @@ type RealtimeCallbacks = {
   onUserTranscript: (text: string) => void;
   onAssistantTranscript: (text: string) => void;
   onError: (message: string) => void;
+  initialAssistantText?: string;
 };
 
 type RealtimeServerEvent = {
@@ -12,7 +13,12 @@ type RealtimeServerEvent = {
   delta?: string;
   transcript?: string;
   error?: { message?: string };
+  part?: {
+    transcript?: string;
+    text?: string;
+  };
   response?: {
+    status?: string;
     output?: Array<{
       content?: Array<{
         transcript?: string;
@@ -28,8 +34,14 @@ export class OpenAIRealtimeSession {
   private stream: MediaStream | null = null;
   private audio: HTMLAudioElement | null = null;
   private assistantTranscript = "";
+  private pendingInitialAssistantText = "";
+  private initialAssistantRequested = false;
+  private lastAssistantTranscript = "";
+  private lastAssistantTranscriptAt = 0;
 
-  constructor(private callbacks: RealtimeCallbacks) {}
+  constructor(private callbacks: RealtimeCallbacks) {
+    this.pendingInitialAssistantText = callbacks.initialAssistantText?.trim() ?? "";
+  }
 
   async start(): Promise<void> {
     this.callbacks.onStatus("connecting");
@@ -53,7 +65,10 @@ export class OpenAIRealtimeSession {
       for (const track of this.stream.getTracks()) peer.addTrack(track, this.stream);
 
       this.channel = peer.createDataChannel("oai-events");
-      this.channel.addEventListener("open", () => this.callbacks.onStatus("connected"));
+      this.channel.addEventListener("open", () => {
+        this.callbacks.onStatus("connected");
+        window.setTimeout(() => this.speakInitialAssistantText(), 250);
+      });
       this.channel.addEventListener("message", (event) => this.handleEvent(event.data));
       this.channel.addEventListener("close", () => this.callbacks.onStatus("idle"));
 
@@ -90,6 +105,10 @@ export class OpenAIRealtimeSession {
     this.stream = null;
     this.audio = null;
     this.assistantTranscript = "";
+    this.pendingInitialAssistantText = "";
+    this.initialAssistantRequested = false;
+    this.lastAssistantTranscript = "";
+    this.lastAssistantTranscriptAt = 0;
     this.callbacks.onStatus("idle");
   }
 
@@ -122,18 +141,62 @@ export class OpenAIRealtimeSession {
 
     if (
       event.type === "response.output_audio_transcript.done" ||
-      event.type === "response.output_text.done"
+      event.type === "response.output_text.done" ||
+      event.type === "response.content_part.done"
     ) {
-      const text = (event.transcript ?? this.assistantTranscript).trim();
-      this.assistantTranscript = "";
-      if (text) this.callbacks.onAssistantTranscript(text);
+      const text = (event.transcript ?? event.part?.transcript ?? event.part?.text)?.trim();
+      if (text) this.assistantTranscript = text;
       return;
     }
 
     if (event.type === "response.done") {
-      const text = extractResponseTranscript(event).trim();
-      if (text) this.callbacks.onAssistantTranscript(text);
+      if (event.response?.status && event.response.status !== "completed") {
+        this.assistantTranscript = "";
+        return;
+      }
+      const text = (extractResponseTranscript(event) || this.assistantTranscript).trim();
+      this.assistantTranscript = "";
+      if (text) this.emitAssistantTranscript(text);
     }
+  }
+
+  private speakInitialAssistantText(): void {
+    if (
+      !this.pendingInitialAssistantText ||
+      this.initialAssistantRequested ||
+      this.channel?.readyState !== "open"
+    ) {
+      return;
+    }
+    this.initialAssistantRequested = true;
+    this.channel.send(JSON.stringify({
+      type: "response.create",
+      response: {
+        output_modalities: ["audio"],
+        instructions: `Say exactly this sentence and nothing else: ${JSON.stringify(this.pendingInitialAssistantText)}`
+      }
+    }));
+  }
+
+  private emitAssistantTranscript(text: string): void {
+    const normalized = normalizeTranscript(text);
+    if (!normalized) return;
+
+    if (this.pendingInitialAssistantText && normalized === normalizeTranscript(this.pendingInitialAssistantText)) {
+      this.pendingInitialAssistantText = "";
+      this.lastAssistantTranscript = normalized;
+      this.lastAssistantTranscriptAt = Date.now();
+      return;
+    }
+
+    const now = Date.now();
+    if (normalized === this.lastAssistantTranscript && now - this.lastAssistantTranscriptAt < 2000) {
+      return;
+    }
+
+    this.lastAssistantTranscript = normalized;
+    this.lastAssistantTranscriptAt = now;
+    this.callbacks.onAssistantTranscript(text);
   }
 }
 
@@ -160,4 +223,8 @@ function extractResponseTranscript(event: RealtimeServerEvent): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeTranscript(text: string): string {
+  return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
