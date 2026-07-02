@@ -209,7 +209,12 @@ export default function Home() {
         setRealtimeStatus(status);
         if (status === "connected" && initialAssistantText && !spokeInitialAssistantText) {
           spokeInitialAssistantText = true;
-          void speak(initialAssistantText);
+          realtime.setAssistantResponsesBlocked(true);
+          realtime.setMicrophoneMuted(true);
+          void speak(initialAssistantText).finally(() => {
+            realtime.setMicrophoneMuted(false);
+            realtime.setAssistantResponsesBlocked(false);
+          });
         }
       },
       onError: (message) => setWarnings([message]),

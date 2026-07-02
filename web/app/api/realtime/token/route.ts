@@ -6,6 +6,8 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_REALTIME_MODEL = "gpt-realtime-2";
 const DEFAULT_REALTIME_VOICE = "marin";
+const REALTIME_SILENCE_UNTIL_USER_PROMPT =
+  "The app speaks the opening line separately. Do not initiate the conversation. Stay silent until you receive a patient audio transcript, then answer only that patient turn.";
 
 export async function GET() {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -26,7 +28,7 @@ export async function GET() {
       session: {
         type: "realtime",
         model: process.env.CHATGRAPH_REALTIME_MODEL || DEFAULT_REALTIME_MODEL,
-        instructions: MEDICAL_AGENT_PROMPT,
+        instructions: `${MEDICAL_AGENT_PROMPT}\n\nRealtime voice rule: ${REALTIME_SILENCE_UNTIL_USER_PROMPT}`,
         output_modalities: ["audio"],
         audio: {
           input: {

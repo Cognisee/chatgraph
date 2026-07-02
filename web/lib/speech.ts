@@ -72,7 +72,11 @@ export async function speak(text: string): Promise<void> {
       currentAudio = null;
     }
     currentAudio = audio;
-    void audio.play();
+    await new Promise<void>((resolve) => {
+      audio.addEventListener("ended", () => resolve(), { once: true });
+      audio.addEventListener("error", () => resolve(), { once: true });
+      void audio.play().catch(() => resolve());
+    });
   } catch {
     // TTS failed silently — user still sees the text.
   }

@@ -5,7 +5,6 @@ type RealtimeCallbacks = {
   onUserTranscript: (text: string) => void;
   onAssistantTranscript: (text: string) => void;
   onError: (message: string) => void;
-  initialAssistantText?: string;
 };
 
 type RealtimeServerEvent = {
@@ -18,6 +17,7 @@ type RealtimeServerEvent = {
     text?: string;
   };
   response?: {
+    id?: string;
     status?: string;
     output?: Array<{
       content?: Array<{
@@ -34,14 +34,11 @@ export class OpenAIRealtimeSession {
   private stream: MediaStream | null = null;
   private audio: HTMLAudioElement | null = null;
   private assistantTranscript = "";
-  private pendingInitialAssistantText = "";
-  private initialAssistantRequested = false;
+  private assistantResponsesBlocked = false;
   private lastAssistantTranscript = "";
   private lastAssistantTranscriptAt = 0;
 
-  constructor(private callbacks: RealtimeCallbacks) {
-    this.pendingInitialAssistantText = callbacks.initialAssistantText?.trim() ?? "";
-  }
+  constructor(private callbacks: RealtimeCallbacks) {}
 
   async start(): Promise<void> {
     this.callbacks.onStatus("connecting");
@@ -67,7 +64,6 @@ export class OpenAIRealtimeSession {
       this.channel = peer.createDataChannel("oai-events");
       this.channel.addEventListener("open", () => {
         this.callbacks.onStatus("connected");
-        window.setTimeout(() => this.speakInitialAssistantText(), 250);
       });
       this.channel.addEventListener("message", (event) => this.handleEvent(event.data));
       this.channel.addEventListener("close", () => this.callbacks.onStatus("idle"));
@@ -105,11 +101,20 @@ export class OpenAIRealtimeSession {
     this.stream = null;
     this.audio = null;
     this.assistantTranscript = "";
-    this.pendingInitialAssistantText = "";
-    this.initialAssistantRequested = false;
+    this.assistantResponsesBlocked = false;
     this.lastAssistantTranscript = "";
     this.lastAssistantTranscriptAt = 0;
     this.callbacks.onStatus("idle");
+  }
+
+  setMicrophoneMuted(muted: boolean): void {
+    for (const track of this.stream?.getAudioTracks() ?? []) {
+      track.enabled = !muted;
+    }
+  }
+
+  setAssistantResponsesBlocked(blocked: boolean): void {
+    this.assistantResponsesBlocked = blocked;
   }
 
   private handleEvent(raw: string): void {
@@ -127,7 +132,14 @@ export class OpenAIRealtimeSession {
 
     if (event.type === "conversation.item.input_audio_transcription.completed") {
       const text = event.transcript?.trim();
-      if (text) this.callbacks.onUserTranscript(text);
+      if (text) {
+        this.callbacks.onUserTranscript(text);
+      }
+      return;
+    }
+
+    if (event.type === "response.created" && this.assistantResponsesBlocked) {
+      this.cancelResponse(event.response?.id);
       return;
     }
 
@@ -150,6 +162,10 @@ export class OpenAIRealtimeSession {
     }
 
     if (event.type === "response.done") {
+      if (this.assistantResponsesBlocked) {
+        this.assistantTranscript = "";
+        return;
+      }
       if (event.response?.status && event.response.status !== "completed") {
         this.assistantTranscript = "";
         return;
@@ -160,34 +176,17 @@ export class OpenAIRealtimeSession {
     }
   }
 
-  private speakInitialAssistantText(): void {
-    if (
-      !this.pendingInitialAssistantText ||
-      this.initialAssistantRequested ||
-      this.channel?.readyState !== "open"
-    ) {
-      return;
-    }
-    this.initialAssistantRequested = true;
+  private cancelResponse(responseId?: string): void {
+    if (this.channel?.readyState !== "open") return;
     this.channel.send(JSON.stringify({
-      type: "response.create",
-      response: {
-        output_modalities: ["audio"],
-        instructions: `Say exactly this sentence and nothing else: ${JSON.stringify(this.pendingInitialAssistantText)}`
-      }
+      type: "response.cancel",
+      ...(responseId ? { response_id: responseId } : {})
     }));
   }
 
   private emitAssistantTranscript(text: string): void {
     const normalized = normalizeTranscript(text);
     if (!normalized) return;
-
-    if (this.pendingInitialAssistantText && normalized === normalizeTranscript(this.pendingInitialAssistantText)) {
-      this.pendingInitialAssistantText = "";
-      this.lastAssistantTranscript = normalized;
-      this.lastAssistantTranscriptAt = Date.now();
-      return;
-    }
 
     const now = Date.now();
     if (normalized === this.lastAssistantTranscript && now - this.lastAssistantTranscriptAt < 2000) {
