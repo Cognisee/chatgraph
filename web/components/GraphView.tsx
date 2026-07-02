@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as d3Force from "d3-force";
+import type { GraphDisplayConfig } from "@/lib/domains";
 import type { GraphState, GraphVertex } from "@/lib/types";
 
 type Pos = { x: number; y: number };
@@ -19,11 +20,13 @@ type LayoutEdge = {
   label: string;
 };
 
-function semanticLabel(vertex: GraphVertex): string {
+function semanticLabel(vertex: GraphVertex, display?: GraphDisplayConfig): string {
   const { label, properties: p } = vertex;
-  if (label === "Person") return "Patient";
+  if (display?.labelOverrides?.[label]) return display.labelOverrides[label];
   const v = p.value;
   if (typeof v === "string" && v.length > 0) return v;
+  const name = p.name;
+  if (typeof name === "string" && name.length > 0) return name;
   if (typeof v === "number") return String(v);
   if (label === "Headache" && typeof p.description === "string") return p.description;
   if (label === "FamilyHistory") {
@@ -38,14 +41,16 @@ function semanticLabel(vertex: GraphVertex): string {
   return label;
 }
 
-function radius(label: string): number {
+function radius(label: string, display?: GraphDisplayConfig): number {
+  if (display?.radii?.[label]) return display.radii[label];
   if (label === "Person") return 18;
   if (label === "Headache") return 16;
   if (["Comment", "Concept", "HeadacheClassification", "Diagnosis", "PainCharacter"].includes(label)) return 14;
   return 12;
 }
 
-function color(label: string): string {
+function color(label: string, display?: GraphDisplayConfig): string {
+  if (display?.colors?.[label]) return display.colors[label];
   if (label === "Person") return "#0f766e";
   if (label === "Headache") return "#b2462e";
   if (label === "HeadacheClassification") return "#e6a817";
@@ -58,7 +63,8 @@ const H = 520;
 
 function computeLayout(
   vertices: GraphVertex[],
-  edges: { out: string; in: string; label: string }[]
+  edges: { out: string; in: string; label: string }[],
+  display?: GraphDisplayConfig
 ): { nodes: LayoutNode[]; edges: LayoutEdge[] } | null {
   if (vertices.length === 0) return null;
 
@@ -85,7 +91,7 @@ function computeLayout(
     .force("link", d3Force.forceLink(simEdges).distance(90).strength(0.15))
     .force("charge", d3Force.forceManyBody().strength(-200))
     .force("center", d3Force.forceCenter(W / 2, H / 2))
-    .force("collision", d3Force.forceCollide().radius((n) => radius((n as LayoutNode).label) + 10))
+    .force("collision", d3Force.forceCollide().radius((n) => radius((n as LayoutNode).label, display) + 10))
     .alphaDecay(0.04)
     .velocityDecay(0.5)
     .stop();
@@ -104,9 +110,33 @@ function computeLayout(
   };
 }
 
-export function GraphView({ graph }: { graph: GraphState }) {
-  const vertexList = Object.values(graph.vertices);
-  const edgeList = Object.values(graph.edges);
+export function GraphView({ graph, display }: { graph: GraphState; display?: GraphDisplayConfig }) {
+  const hiddenLabels = useMemo(() => new Set(display?.hiddenLabels ?? []), [display]);
+  const hiddenEdges = useMemo(() => new Set(display?.hiddenEdges ?? []), [display]);
+  const hiddenTextPatterns = useMemo(
+    () => (display?.hiddenTextPatterns ?? []).map((pattern) => new RegExp(pattern, "i")),
+    [display]
+  );
+  const vertexList = useMemo(
+    () =>
+      Object.values(graph.vertices).filter(
+        (vertex) =>
+          !hiddenLabels.has(vertex.label) &&
+          !hiddenTextPatterns.some((pattern) => pattern.test(semanticLabel(vertex, display)))
+      ),
+    [display, graph.vertices, hiddenLabels, hiddenTextPatterns]
+  );
+  const visibleIds = useMemo(() => new Set(vertexList.map((vertex) => vertex.id)), [vertexList]);
+  const edgeList = useMemo(
+    () =>
+      Object.values(graph.edges).filter(
+        (edgeItem) =>
+          !hiddenEdges.has(edgeItem.label) &&
+          visibleIds.has(edgeItem.out) &&
+          visibleIds.has(edgeItem.in)
+      ),
+    [graph.edges, hiddenEdges, visibleIds]
+  );
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomGroupRef = useRef<SVGGElement>(null);
   const [layout, setLayout] = useState<{ nodes: LayoutNode[]; edges: LayoutEdge[] } | null>(null);
@@ -114,7 +144,7 @@ export function GraphView({ graph }: { graph: GraphState }) {
 
   // Compute initial layout once when graph changes
   useEffect(() => {
-    const result = computeLayout(vertexList, edgeList);
+    const result = computeLayout(vertexList, edgeList, display);
     if (result) {
       setLayout(result);
       const pos = new Map<string, Pos>();
@@ -167,7 +197,7 @@ export function GraphView({ graph }: { graph: GraphState }) {
         const pos = nodePositions.get(n.id) ?? { x: n.x, y: n.y };
         const dx = pt.x - pos.x;
         const dy = pt.y - pos.y;
-        if (dx * dx + dy * dy < (radius(n.label) + 10) ** 2) return n.id;
+        if (dx * dx + dy * dy < (radius(n.label, display) + 10) ** 2) return n.id;
       }
       return null;
     }
@@ -247,11 +277,11 @@ export function GraphView({ graph }: { graph: GraphState }) {
       window.removeEventListener("mouseup", onMouseUp);
       svg.removeEventListener("wheel", onWheel);
     };
-  }, [layout, nodePositions]);
+  }, [display, layout, nodePositions]);
 
   const labelMap = useMemo(
-    () => new Map(vertexList.map((v) => [v.id, semanticLabel(v)])),
-    [vertexList]
+    () => new Map(vertexList.map((v) => [v.id, semanticLabel(v, display)])),
+    [display, vertexList]
   );
 
   // Build a node position lookup for rendering
@@ -298,8 +328,8 @@ export function GraphView({ graph }: { graph: GraphState }) {
               if (len === 0) return null;
               const ux = dx / len;
               const uy = dy / len;
-              const sr = radius(srcLabel);
-              const tr = radius(tgtLabel);
+              const sr = radius(srcLabel, display);
+              const tr = radius(tgtLabel, display);
               const x1 = srcPos.x + ux * sr;
               const y1 = srcPos.y + uy * sr;
               const x2 = tgtPos.x - ux * tr;
@@ -320,10 +350,10 @@ export function GraphView({ graph }: { graph: GraphState }) {
 
             {layout?.nodes.map((node) => {
               const pos = posMap.get(node.id) ?? { x: node.x, y: node.y };
-              const r = radius(node.label);
+              const r = radius(node.label, display);
               const lbl = labelMap.get(node.id) ?? node.label;
               const short = lbl.length > 12 ? lbl.slice(0, 11) + "\u2026" : lbl;
-              const c = color(node.label);
+              const c = color(node.label, display);
 
               return (
                 <g key={node.id} style={{ cursor: "pointer" }}>

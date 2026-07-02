@@ -2,6 +2,7 @@ export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 
 export type ChatRole = "user" | "assistant";
+export type DomainId = "medical" | "hospitality";
 
 export interface ChatMessage {
   id: string;
@@ -40,12 +41,14 @@ export interface ClientSettings {
 }
 
 export interface ChatSession {
+  domainId: DomainId;
   messages: ChatMessage[];
   graph: GraphState;
   settings: ClientSettings;
 }
 
 export interface ChatRequest {
+  domainId?: DomainId;
   messages: ChatMessage[];
   graph: GraphState;
 }

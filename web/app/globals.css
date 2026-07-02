@@ -32,7 +32,8 @@ body {
 }
 
 button,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -111,6 +112,21 @@ h2 {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.domain-select {
+  height: 42px;
+  min-width: 170px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 10px;
+  outline: none;
+}
+
+.domain-select:focus {
+  border-color: var(--accent);
 }
 
 .icon-button,

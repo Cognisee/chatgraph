@@ -1,23 +1,28 @@
 import { emptyGraph } from "./schema";
-import type { ChatSession } from "./types";
-import { OPENING_LINE } from "./prompts";
+import type { ChatSession, DomainId } from "./types";
+import { getDomain } from "./domains";
 
 const DB_NAME = "chatgraph-browser";
 const DB_VERSION = 1;
 const STORE_NAME = "sessions";
-const SESSION_KEY = "default";
 
-export function defaultSession(): ChatSession {
+function sessionKey(domainId: DomainId): string {
+  return `default:${domainId}`;
+}
+
+export function defaultSession(domainId: DomainId = "medical"): ChatSession {
+  const domain = getDomain(domainId);
   return {
+    domainId,
     messages: [
       {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: OPENING_LINE,
+        content: domain.openingLine,
         createdAt: Date.now()
       }
     ],
-    graph: emptyGraph(),
+    graph: emptyGraph(domainId),
     settings: {
       voiceEnabled: true,
       autoSpeak: true
@@ -25,25 +30,25 @@ export function defaultSession(): ChatSession {
   };
 }
 
-export async function loadSession(): Promise<ChatSession> {
+export async function loadSession(domainId: DomainId = "medical"): Promise<ChatSession> {
   const db = await openDb();
   const value = await requestToPromise<ChatSession | undefined>(
-    db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(SESSION_KEY)
+    db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(sessionKey(domainId))
   );
   db.close();
-  return value ?? defaultSession();
+  return value?.domainId === domainId ? value : defaultSession(domainId);
 }
 
 export async function saveSession(session: ChatSession): Promise<void> {
   const db = await openDb();
   await requestToPromise(
-    db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).put(session, SESSION_KEY)
+    db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).put(session, sessionKey(session.domainId))
   );
   db.close();
 }
 
-export async function clearSession(): Promise<ChatSession> {
-  const session = defaultSession();
+export async function clearSession(domainId: DomainId = "medical"): Promise<ChatSession> {
+  const session = defaultSession(domainId);
   await saveSession(session);
   return session;
 }

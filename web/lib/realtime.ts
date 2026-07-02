@@ -5,6 +5,7 @@ type RealtimeCallbacks = {
   onUserTranscript: (text: string) => void;
   onAssistantTranscript: (text: string) => void;
   onError: (message: string) => void;
+  domainId?: string;
 };
 
 type RealtimeServerEvent = {
@@ -43,7 +44,10 @@ export class OpenAIRealtimeSession {
   async start(): Promise<void> {
     this.callbacks.onStatus("connecting");
     try {
-      const tokenResponse = await fetch("/api/realtime/token", { cache: "no-store" });
+      const tokenUrl = this.callbacks.domainId
+        ? `/api/realtime/token?domain=${encodeURIComponent(this.callbacks.domainId)}`
+        : "/api/realtime/token";
+      const tokenResponse = await fetch(tokenUrl, { cache: "no-store" });
       if (!tokenResponse.ok) throw new Error(await tokenResponse.text());
       const tokenPayload = await tokenResponse.json();
       const token = extractRealtimeToken(tokenPayload);

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { MEDICAL_AGENT_PROMPT } from "@/lib/prompts";
+import { getDomain } from "@/lib/domains";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ const DEFAULT_REALTIME_VOICE = "marin";
 const REALTIME_SILENCE_UNTIL_USER_PROMPT =
   "The app speaks the opening line separately. Do not initiate the conversation. Stay silent until you receive a patient audio transcript, then answer only that patient turn.";
 
-export async function GET() {
+export async function GET(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -17,6 +17,9 @@ export async function GET() {
       { status: 500 }
     );
   }
+
+  const domainId = new URL(request.url).searchParams.get("domain") ?? undefined;
+  const domain = getDomain(domainId);
 
   const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
     method: "POST",
@@ -28,7 +31,7 @@ export async function GET() {
       session: {
         type: "realtime",
         model: process.env.CHATGRAPH_REALTIME_MODEL || DEFAULT_REALTIME_MODEL,
-        instructions: `${MEDICAL_AGENT_PROMPT}\n\nRealtime voice rule: ${REALTIME_SILENCE_UNTIL_USER_PROMPT}`,
+        instructions: `${domain.agentPrompt}\n\nRealtime voice rule: ${REALTIME_SILENCE_UNTIL_USER_PROMPT}`,
         output_modalities: ["audio"],
         audio: {
           input: {

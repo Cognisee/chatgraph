@@ -14,15 +14,17 @@ import {
   VolumeX
 } from "lucide-react";
 import { GraphView } from "@/components/GraphView";
+import { domainList, getDomain, isDomainId } from "@/lib/domains";
 import { exportSessionJson, exportTranscriptJsonl, exportTranscriptTxt } from "@/lib/export";
 import { OpenAIRealtimeSession, type RealtimeStatus } from "@/lib/realtime";
 import { mergeDelta } from "@/lib/schema";
-import { clearSession, defaultSession, saveSession } from "@/lib/storage";
+import { clearSession, loadSession, saveSession } from "@/lib/storage";
 import { createSpeechRecognition, speak, speechRecognitionAvailable, stopSpeaking } from "@/lib/speech";
-import type { ChatMessage, ChatResponse, ChatSession } from "@/lib/types";
+import type { ChatMessage, ChatResponse, ChatSession, DomainId } from "@/lib/types";
 
 export default function Home() {
   const [session, setSession] = useState<ChatSession | null>(null);
+  const [selectedDomainId, setSelectedDomainId] = useState<DomainId>("medical");
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -36,8 +38,18 @@ export default function Home() {
 
   useEffect(() => {
     setSpeechAvailable(speechRecognitionAvailable());
-    setSession(defaultSession());
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSession(null);
+    void loadSession(selectedDomainId).then((loaded) => {
+      if (!cancelled) setSession(loaded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDomainId]);
 
   useEffect(() => {
     if (session) void saveSession(session);
@@ -75,18 +87,20 @@ export default function Home() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           messages: optimistic.messages,
+          domainId: optimistic.domainId,
           graph: optimistic.graph
         })
       });
       if (!response.ok) throw new Error(await response.text());
       const data = (await response.json()) as ChatResponse;
       const nextGraph = mergeDelta(optimistic.graph, data.delta);
+      const hasGraphDelta = data.delta.vertices.length > 0 || data.delta.edges.length > 0;
       setSession({
         ...optimistic,
         graph: nextGraph,
         messages: [...optimistic.messages, data.assistantMessage]
       });
-      setWarnings(data.warnings ?? []);
+      setWarnings(hasGraphDelta ? [] : (data.warnings ?? []));
       if (optimistic.settings.autoSpeak) speak(data.assistantMessage.content);
     } catch {
       const assistantMessage: ChatMessage = {
@@ -130,11 +144,13 @@ export default function Home() {
         body: JSON.stringify({
           text,
           messages: baseSession.messages,
+          domainId: baseSession.domainId,
           graph: baseSession.graph
         })
       });
       if (!response.ok) throw new Error(await response.text());
       const data = (await response.json()) as Pick<ChatResponse, "delta" | "warnings">;
+      const hasGraphDelta = data.delta.vertices.length > 0 || data.delta.edges.length > 0;
       const current = sessionRef.current;
       if (!current) return;
       const next = {
@@ -143,7 +159,7 @@ export default function Home() {
       };
       sessionRef.current = next;
       setSession(next);
-      setWarnings(data.warnings ?? []);
+      setWarnings(hasGraphDelta ? [] : (data.warnings ?? []));
     } catch {
       setWarnings(["Voice transcript saved, but graph extraction failed for that turn."]);
     }
@@ -194,6 +210,7 @@ export default function Home() {
     }
     if (!session) return;
     const currentSession = session;
+    const domain = getDomain(currentSession.domainId);
     const initialAssistantText =
       currentSession.messages.length === 1 && currentSession.messages[0]?.role === "assistant"
         ? currentSession.messages[0].content
@@ -224,7 +241,8 @@ export default function Home() {
       },
       onAssistantTranscript: (text) => {
         appendMessage("assistant", text);
-      }
+      },
+      domainId: domain.id
     });
     realtimeRef.current = realtime;
     await realtime.start();
@@ -236,7 +254,18 @@ export default function Home() {
     stopSpeaking();
     setWarnings([]);
     setInput("");
-    setSession(await clearSession());
+    setSession(await clearSession(selectedDomainId));
+  }
+
+  function changeDomain(domainId: string) {
+    if (!isDomainId(domainId) || domainId === selectedDomainId) return;
+    realtimeRef.current?.stop();
+    realtimeRef.current = null;
+    stopSpeaking();
+    setWarnings([]);
+    setInput("");
+    setRealtimeStatus("idle");
+    setSelectedDomainId(domainId);
   }
 
   function exportAll() {
@@ -247,12 +276,15 @@ export default function Home() {
   }
 
   if (!session) {
+    const domain = getDomain(selectedDomainId);
     return (
       <main className="app-frame">
-        <div className="loading-panel">Loading chatgraph…</div>
+        <div className="loading-panel">Loading {domain.label}…</div>
       </main>
     );
   }
+
+  const domain = getDomain(session.domainId);
 
   return (
     <main className="app-frame">
@@ -262,11 +294,25 @@ export default function Home() {
             <div>
               <h1>chatgraph</h1>
               <p>
-                medical interview prototype
+                {domain.subtitle}
                 {realtimeStatus !== "idle" ? ` · voice ${realtimeStatus}` : ""}
               </p>
             </div>
             <div className="toolbar">
+              <select
+                className="domain-select"
+                value={session.domainId}
+                onChange={(event) => changeDomain(event.target.value)}
+                disabled={realtimeStatus !== "idle" || isSending}
+                aria-label="Choose usecase"
+                title="Choose usecase"
+              >
+                {domainList.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
                 className="icon-button"
@@ -320,7 +366,7 @@ export default function Home() {
           <div className="message-list">
             {session.messages.map((message) => (
               <article key={message.id} className={`message ${message.role}`}>
-                <span>{message.role === "assistant" ? "agent" : "patient"}</span>
+                <span>{message.role === "assistant" ? "agent" : domain.userLabel}</span>
                 <p>{message.content}</p>
               </article>
             ))}
@@ -345,7 +391,7 @@ export default function Home() {
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Describe the headache in your own words"
+              placeholder={domain.composerPlaceholder}
               rows={2}
               disabled={isSending}
             />
@@ -365,7 +411,7 @@ export default function Home() {
           <header className="graph-header">
             <h2>graph</h2>
           </header>
-          <GraphView graph={session.graph} />
+          <GraphView graph={session.graph} display={domain.graphDisplay} />
         </aside>
       </section>
     </main>

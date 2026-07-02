@@ -1,5 +1,5 @@
-import medicalSchemaRaw from "../src/main/json/medical.json";
 import type { GraphDelta, GraphEdge, GraphState, GraphVertex, JsonValue } from "./types";
+import { getDomain, type DomainConfig, type DomainSchema } from "./domains";
 
 type SchemaProperty = {
   key: string;
@@ -17,18 +17,13 @@ type SchemaVertexEntry = {
 type SchemaEdgeEntry = {
   "@key": string;
   "@value": {
-    out: string;
-    in: string;
+    out?: string;
+    in?: string;
+    outV?: string;
+    inV?: string;
     properties?: SchemaProperty[];
   };
 };
-
-type MedicalSchema = {
-  vertices: SchemaVertexEntry[];
-  edges: SchemaEdgeEntry[];
-};
-
-const medicalSchema = medicalSchemaRaw as MedicalSchema;
 
 export type VertexSpec = {
   label: string;
@@ -42,42 +37,67 @@ export type EdgeSpec = {
   properties: Set<string>;
 };
 
-export const vertexSpecs = new Map<string, VertexSpec>(
-  medicalSchema.vertices.map((entry) => [
+type SchemaRuntime = {
+  vertexSpecs: Map<string, VertexSpec>;
+  edgeSpecs: Map<string, EdgeSpec>;
+};
+
+const runtimeCache = new Map<string, SchemaRuntime>();
+
+function schemaRuntime(domain: DomainConfig): SchemaRuntime {
+  const cached = runtimeCache.get(domain.id);
+  if (cached) return cached;
+  const schema = domain.schema as DomainSchema;
+  const vertexSpecs = new Map<string, VertexSpec>(
+    (schema.vertices as SchemaVertexEntry[]).map((entry) => [
     entry["@key"],
     {
       label: entry["@key"],
       properties: new Set((entry["@value"].properties ?? []).map((prop) => prop.key))
     }
-  ])
-);
+    ])
+  );
 
-export const edgeSpecs = new Map<string, EdgeSpec>(
-  medicalSchema.edges.map((entry) => [
+  const edgeSpecs = new Map<string, EdgeSpec>(
+    (schema.edges as SchemaEdgeEntry[]).map((entry) => [
     entry["@key"],
     {
       label: entry["@key"],
-      out: entry["@value"].out,
-      in: entry["@value"].in,
+      out: entry["@value"].out ?? entry["@value"].outV ?? "",
+      in: entry["@value"].in ?? entry["@value"].inV ?? "",
       properties: new Set((entry["@value"].properties ?? []).map((prop) => prop.key))
     }
-  ])
-);
+    ])
+  );
+  const runtime = { vertexSpecs, edgeSpecs };
+  runtimeCache.set(domain.id, runtime);
+  return runtime;
+}
 
-export function emptyGraph(): GraphState {
+export function emptyGraph(domainId = "medical"): GraphState {
+  const domain = getDomain(domainId);
+  const vertices: Record<string, GraphVertex> = {};
+  const edges: Record<string, GraphEdge> = {};
+  for (const vertex of domain.initialVertices) {
+    vertices[vertex.id] = {
+      ...vertex,
+      properties: { ...(vertex.properties ?? {}) }
+    };
+  }
+  for (const edge of domain.initialEdges ?? []) {
+    edges[edge.id] = {
+      ...edge,
+      properties: { ...(edge.properties ?? {}) }
+    };
+  }
   return {
-    vertices: {
-      "Person:patient": {
-        id: "Person:patient",
-        label: "Person",
-        properties: { name: "patient" }
-      }
-    },
-    edges: {}
+    vertices,
+    edges
   };
 }
 
-export function schemaReference(): string {
+export function schemaReference(domainId = "medical"): string {
+  const { vertexSpecs, edgeSpecs } = schemaRuntime(getDomain(domainId));
   const vertexLines = [...vertexSpecs.values()]
     .map((spec) => {
       const props = [...spec.properties].sort();
@@ -136,10 +156,11 @@ export function mergeDelta(graph: GraphState, delta: GraphDelta): GraphState {
   return next;
 }
 
-export function sanitizeDelta(input: unknown, graph: GraphState): {
+export function sanitizeDelta(input: unknown, graph: GraphState, domainId = "medical"): {
   delta: GraphDelta;
   warnings: string[];
 } {
+  const { vertexSpecs, edgeSpecs } = schemaRuntime(getDomain(domainId));
   const warnings: string[] = [];
   const raw = isRecord(input) ? input : {};
   if (!isRecord(input)) {
