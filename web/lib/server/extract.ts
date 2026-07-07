@@ -4,42 +4,13 @@ import type { ChatRequest, GraphDelta } from "@/lib/types";
 import { getDomain } from "@/lib/domains";
 
 const DEFAULT_EXTRACTOR_MODEL = "gpt-4o-mini";
-const HOSPITALITY_INFRA_LABELS = new Set([
-  "Person",
-  "KnowledgeSession",
-  "SessionSection",
-  "TranscriptEpisode",
-  "ProvenanceEvidence"
-]);
-const HOSPITALITY_SEMANTIC_EDGES = new Set([
-  "appliesToPersona",
-  "standardEnforces",
-  "signalTriggers",
-  "signalIndicates",
-  "governs",
-  "governsCheckOut",
-  "resolvedBy",
-  "exceptionAppliesTo",
-  "exceptionMadeFor",
-  "heuristicExplains",
-  "leadsTo",
-  "recoveryLeadsTo",
-  "shapesLoyalty",
-  "drivenBy",
-  "loyaltyLeadsTo",
-  "modulatedBy",
-  "constraintAffectsPolicy"
-]);
 
 export async function extractGraphDelta(
   openai: OpenAI,
   latestText: string,
   body: ChatRequest
 ): Promise<{ delta: GraphDelta; warnings: string[] }> {
-  if (body.domainId === "hospitality" && isNonKnowledgeHospitalityUtterance(latestText)) {
-    return { delta: { vertices: [], edges: [] }, warnings: [] };
-  }
-  if (body.domainId === "hospitality" && isProfileOnlyHospitalityUtterance(latestText)) {
+  if (body.domainId === "hospitality") {
     return { delta: hospitalityFallbackDelta(latestText, body), warnings: [] };
   }
 
@@ -81,9 +52,7 @@ export async function extractGraphDelta(
     const sanitized = sanitizeDelta(rawInput, body.graph, body.domainId);
     if (!best || scoreDelta(sanitized) > scoreDelta(best)) best = sanitized;
     if (sanitized.warnings.length === 0) {
-      return body.domainId === "hospitality"
-        ? ensureHospitalityConnectedDelta(sanitized, latestText, body)
-        : sanitized;
+      return sanitized;
     }
     feedback =
       `The previous graph delta failed validation and was sanitized with these problems:\n` +
@@ -96,170 +65,12 @@ export async function extractGraphDelta(
     delta: { vertices: [], edges: [] },
     warnings: ["Extractor did not run."]
   };
-  if (body.domainId === "hospitality") return ensureHospitalityConnectedDelta(result, latestText, body);
   return result;
 }
 
 function scoreDelta(result: { delta: GraphDelta; warnings: string[] }): number {
   const graphItems = result.delta.vertices.length + result.delta.edges.length;
   return graphItems * 100 - result.warnings.length;
-}
-
-function ensureHospitalityConnectedDelta(
-  result: { delta: GraphDelta; warnings: string[] },
-  latestText: string,
-  body: ChatRequest
-): { delta: GraphDelta; warnings: string[] } {
-  const normalizedDelta = normalizeHospitalityDelta(result.delta, latestText);
-  const hasSemanticKnowledge = hasHospitalitySemanticEdge(normalizedDelta);
-  const fallback = hospitalityFallbackDelta(latestText, body);
-  const infrastructure = hasSemanticKnowledge
-    ? hospitalityInfrastructureDelta(latestText, body, normalizedDelta)
-    : { vertices: [], edges: [] };
-  if (
-    fallback.vertices.length === 0 &&
-    fallback.edges.length === 0 &&
-    infrastructure.vertices.length === 0 &&
-    infrastructure.edges.length === 0
-  ) {
-    return { delta: normalizedDelta, warnings: result.warnings };
-  }
-  return {
-    delta: {
-      vertices: mergeUniqueById(mergeUniqueById(normalizedDelta.vertices, fallback.vertices), infrastructure.vertices),
-      edges: mergeUniqueById(mergeUniqueById(normalizedDelta.edges, fallback.edges), infrastructure.edges)
-    },
-    warnings: []
-  };
-}
-
-function normalizeHospitalityDelta(delta: GraphDelta, latestText: string): GraphDelta {
-  const transcriptLikeVertexIds = new Set(
-    delta.vertices
-      .filter((vertex) => {
-        if (HOSPITALITY_INFRA_LABELS.has(vertex.label)) return false;
-        return isTranscriptLikeHospitalityVertex(vertex, latestText);
-      })
-      .map((vertex) => vertex.id)
-  );
-  const semanticEdges = delta.edges.filter((edgeItem) => HOSPITALITY_SEMANTIC_EDGES.has(edgeItem.label));
-  const semanticallyConnectedIds = new Set<string>();
-  for (const edgeItem of semanticEdges) {
-    semanticallyConnectedIds.add(edgeItem.out);
-    semanticallyConnectedIds.add(edgeItem.in);
-  }
-
-  const vertices = delta.vertices
-    .filter((vertex) => !transcriptLikeVertexIds.has(vertex.id) || semanticallyConnectedIds.has(vertex.id))
-    .map((vertex) => {
-      if (vertex.label === "GuestExperiencePrinciple") {
-        return {
-          ...vertex,
-          properties: {
-            ...vertex.properties,
-            name: conceptNameForHospitality(latestText)
-          }
-        };
-      }
-      if (vertex.label === "ServiceStandard") {
-        return {
-          ...vertex,
-          properties: {
-            ...vertex.properties,
-            name: serviceStandardName(latestText)
-          }
-        };
-      }
-      return vertex;
-    });
-  const vertexIds = new Set(vertices.map((vertex) => vertex.id));
-  const edges = delta.edges.filter(
-    (edgeItem) =>
-      !transcriptLikeVertexIds.has(edgeItem.out) &&
-      !transcriptLikeVertexIds.has(edgeItem.in) &&
-      (!transcriptLikeVertexIds.size || vertexIds.has(edgeItem.out) || vertexIds.has(edgeItem.in))
-  );
-  return { vertices, edges };
-}
-
-function isTranscriptLikeHospitalityVertex(vertex: GraphDelta["vertices"][number], latestText: string): boolean {
-  const candidate =
-    stringProperty(vertex.properties.name) ||
-    stringProperty(vertex.properties.ruleText) ||
-    stringProperty(vertex.properties.description) ||
-    stringProperty(vertex.properties.standardText);
-  const text = latestText.replace(/\s+/g, " ").trim().toLowerCase();
-  const value = candidate.replace(/\s+/g, " ").trim().toLowerCase();
-  if (!value) return false;
-  if (isFillerText(value) || isProfileOpening(value)) return true;
-  if (value.length > 55 && (text.includes(value.slice(0, 45)) || value.includes(text.slice(0, 45)))) return true;
-  return value.split(/\s+/).length > 9 && overlapRatio(value, text) > 0.65;
-}
-
-function hasHospitalitySemanticEdge(delta: GraphDelta): boolean {
-  return delta.edges.some((edgeItem) => HOSPITALITY_SEMANTIC_EDGES.has(edgeItem.label));
-}
-
-function hospitalityInfrastructureDelta(
-  latestText: string,
-  body: ChatRequest,
-  delta: GraphDelta
-): GraphDelta {
-  const text = latestText.trim();
-  const sectionId = "section:session:hospitality:default:1";
-  const vertices: GraphDelta["vertices"] = [
-    {
-      id: sectionId,
-      label: "SessionSection",
-      properties: {
-        sectionType: "introduction",
-        title: "Introduction",
-        order: 1,
-        purpose: "Capture expert background and initial hospitality knowledge"
-      }
-    }
-  ];
-  const edges: GraphDelta["edges"] = [];
-
-  if (!hasEdge(body.graph, delta, "session:hospitality:default", "hasSection", sectionId)) {
-    edges.push(edge("session:hospitality:default", "hasSection", sectionId));
-  }
-
-  const episodeIds = delta.vertices
-    .filter((vertex) => vertex.label === "TranscriptEpisode")
-    .map((vertex) => vertex.id);
-  for (const episodeId of episodeIds) {
-    if (!hasIncomingEdge(body.graph, delta, episodeId, "hasEpisode")) {
-      edges.push(edge(sectionId, "hasEpisode", episodeId));
-    }
-  }
-
-  const provenanceId = `prov:${episodeIds[0] ?? "ep:session:hospitality:default:000"}:01`;
-  const hasProvenance =
-    Object.values(body.graph.vertices).some((vertex) => vertex.label === "ProvenanceEvidence") ||
-    delta.vertices.some((vertex) => vertex.label === "ProvenanceEvidence");
-  if (episodeIds.length > 0 && !hasProvenance) {
-    vertices.push({
-      id: provenanceId,
-      label: "ProvenanceEvidence",
-      properties: {
-        traceText: text,
-        sourceEpisode: episodeIds[0],
-        speaker: "expert",
-        confidence: "medium"
-      }
-    });
-  }
-
-  for (const vertex of delta.vertices) {
-    const provenanceEdgeLabel = provenanceEdgeFor(vertex.label);
-    if (!provenanceEdgeLabel) continue;
-    if (!hasOutgoingProvenance(body.graph, delta, vertex.id)) {
-      edges.push(edge(vertex.id, provenanceEdgeLabel, provenanceId));
-    }
-  }
-
-  return { vertices, edges };
 }
 
 function hospitalityFallbackDelta(latestText: string, body: ChatRequest): GraphDelta {
@@ -277,6 +88,7 @@ function hospitalityFallbackDelta(latestText: string, body: ChatRequest): GraphD
   const conceptSlug = slug(conceptName).slice(0, 48) || `turn-${sequence}`;
   const principleId = `principle:${conceptSlug}`;
   const personaId = "persona:hotel-guests";
+  const businessId = existingHospitalityBusinessId(body) ?? "business:hotel-chain";
 
   const sessionPatch = sessionUpdateForHospitality(text);
 
@@ -318,10 +130,55 @@ function hospitalityFallbackDelta(latestText: string, body: ChatRequest): GraphD
   ];
 
   if (isProfileOnlyHospitalityUtterance(text)) {
+    const roleTitle = expertRoleFromText(text);
+    const tenure = operatingTenureFromText(text);
+    const business = hospitalityBusinessFromText(text);
+    if (roleTitle) {
+      vertices.push({
+        id: `role:${slug(roleTitle)}`,
+        label: "ExpertRole",
+        properties: {
+          title: roleTitle,
+          description: `${roleTitle} role in the hospitality business`
+        }
+      });
+      edges.push(edge("person:expert", "hasRole", `role:${slug(roleTitle)}`));
+    }
+    if (business) {
+      vertices.push({
+        id: businessId,
+        label: "HospitalityBusiness",
+        properties: business
+      });
+      edges.push(edge("person:expert", "operatesBusiness", businessId));
+    }
+    if (business && tenure) {
+      vertices.push({
+        id: `tenure:${slug(tenure)}`,
+        label: "OperatingTenure",
+        properties: {
+          duration: tenure,
+          description: `Business has been operated for ${tenure}`
+        }
+      });
+      edges.push(edge(businessId, "hasOperatingTenure", `tenure:${slug(tenure)}`));
+    }
     return { vertices, edges };
   }
 
   vertices.push(
+    ...(!body.graph.vertices[businessId]
+      ? [
+          {
+            id: businessId,
+            label: "HospitalityBusiness",
+            properties: {
+              name: "Hospitality business",
+              businessType: "hospitality"
+            }
+          }
+        ]
+      : []),
     {
       id: principleId,
       label: "GuestExperiencePrinciple",
@@ -343,7 +200,8 @@ function hospitalityFallbackDelta(latestText: string, body: ChatRequest): GraphD
 
   edges.push(
     edge(episodeId, "discusses", principleId),
-    edge(principleId, "appliesToPersona", personaId),
+    edge(businessId, "businessDifferentiatedBy", principleId),
+    edge(principleId, "experienceDesignedFor", personaId),
     edge(principleId, "principleSupportedBy", provenanceId)
   );
 
@@ -373,10 +231,40 @@ function hospitalityFallbackDelta(latestText: string, body: ChatRequest): GraphD
       }
     });
     edges.push(edge(standardId, "standardEnforces", principleId));
+    edges.push(edge(standardId, "standardDeliveredTo", personaId));
     edges.push(edge(standardId, "supportedBy", provenanceId));
   }
 
   return { vertices, edges };
+}
+
+function existingHospitalityBusinessId(body: ChatRequest): string | null {
+  return Object.values(body.graph.vertices).find((vertex) => vertex.label === "HospitalityBusiness")?.id ?? null;
+}
+
+function expertRoleFromText(text: string): string {
+  const lower = text.toLowerCase();
+  if (/\bceo\b/.test(lower)) return "CEO";
+  const roleMatch = lower.match(/\b(owner|operator|manager|founder|director)\b/);
+  return roleMatch ? roleMatch[1][0].toUpperCase() + roleMatch[1].slice(1) : "";
+}
+
+function hospitalityBusinessFromText(text: string): { name: string; businessType: string; scale?: string; description: string } | null {
+  const lower = text.toLowerCase();
+  if (!/\b(hotel|hotels|resort|restaurant|chain|hospitality business)\b/.test(lower)) return null;
+  const isHotel = /\bhotel|hotels\b/.test(lower);
+  const isChain = /\b(chain|multiple|large|line)\b/.test(lower);
+  return {
+    name: isChain && isHotel ? "Hotel chain" : isHotel ? "Hotel business" : "Hospitality business",
+    businessType: isHotel ? "hotel" : lower.includes("restaurant") ? "restaurant" : "hospitality",
+    ...(isChain ? { scale: "chain" } : {}),
+    description: text
+  };
+}
+
+function operatingTenureFromText(text: string): string {
+  const match = text.match(/\b(\d+)\s+(year|years|yr|yrs)\b/i);
+  return match ? `${match[1]} years` : "";
 }
 
 function outcomeVertex(vertices: GraphDelta["vertices"], slugPart: string): string {
@@ -397,8 +285,8 @@ function isProfileOnlyHospitalityUtterance(text: string): boolean {
   const lower = text.toLowerCase();
   const hasRoleOrTenure = /\b(ceo|owner|manager|operator|role|run|running|operate|operating|years?)\b/.test(lower);
   const hasHospitalityType = /\b(hotel|hotels|resort|restaurant|chain|business)\b/.test(lower);
-  const hasServiceKnowledge = /\b(guest|customer|service|experience|staff|check-?in|welcome|towel|policy|rule|when|if|recover|loyalty|successful|success)\b/.test(lower);
-  return hasRoleOrTenure && hasHospitalityType && !hasServiceKnowledge;
+  const hasServiceKnowledge = /\b(guest|customer service|service standard|guest experience|staff|check-?in|welcome|towel|policy|rule|when|if|recover|loyalty|successful|success)\b/.test(lower);
+  return hasHospitalityType && (hasRoleOrTenure || !hasServiceKnowledge);
 }
 
 function isNonKnowledgeHospitalityUtterance(text: string): boolean {
@@ -412,10 +300,6 @@ function isNonKnowledgeHospitalityUtterance(text: string): boolean {
 function isFillerText(text: string): boolean {
   return /^(okay|ok|sure|yes|yeah|yep|great|thanks?|thank you|cool|fine)(\b|[.!,'-])/.test(text) ||
     /^let'?s\s+(go|continue|start)/.test(text);
-}
-
-function isProfileOpening(text: string): boolean {
-  return /^(i am|i'm|my role is)\b/.test(text);
 }
 
 function sessionUpdateForHospitality(text: string): GraphDelta["vertices"][number] | null {
@@ -436,6 +320,7 @@ function conceptNameForHospitality(text: string): string {
   const lower = text.toLowerCase();
   if (/\bhot towels?\b/.test(lower)) return "Hot towel welcome ritual";
   if (/\bcheck-?in\b/.test(lower) && /\b(relax|sit|seated|welcome)\b/.test(lower)) return "Relaxed check-in experience";
+  if (/\bcustomer experience\b/.test(lower)) return "Customer experience excellence";
   if (/\bcustomer service\b/.test(lower)) return "Customer service excellence";
   if (/\bguest(s)?\b/.test(lower) && /\b(success|successful|love|experience|care|happy|satisfaction)\b/.test(lower)) {
     return "Guest-centered experience";
@@ -465,21 +350,6 @@ function shortConceptTitle(text: string): string {
   return title ? title[0].toUpperCase() + title.slice(1) : "Hospitality practice";
 }
 
-function stringProperty(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function overlapRatio(a: string, b: string): number {
-  const aWords = new Set(a.split(/\s+/).filter((word) => word.length > 2));
-  const bWords = new Set(b.split(/\s+/).filter((word) => word.length > 2));
-  if (aWords.size === 0) return 0;
-  let overlap = 0;
-  for (const word of aWords) {
-    if (bWords.has(word)) overlap += 1;
-  }
-  return overlap / aWords.size;
-}
-
 function edge(out: string, label: string, incoming: string): GraphDelta["edges"][number] {
   return {
     id: `${out}--${label}-->${incoming}`,
@@ -488,58 +358,6 @@ function edge(out: string, label: string, incoming: string): GraphDelta["edges"]
     in: incoming,
     properties: {}
   };
-}
-
-function hasEdge(graph: ChatRequest["graph"], delta: GraphDelta, out: string, label: string, incoming: string): boolean {
-  return [...Object.values(graph.edges), ...delta.edges].some(
-    (edgeItem) => edgeItem.out === out && edgeItem.label === label && edgeItem.in === incoming
-  );
-}
-
-function hasIncomingEdge(graph: ChatRequest["graph"], delta: GraphDelta, vertexId: string, label: string): boolean {
-  return [...Object.values(graph.edges), ...delta.edges].some(
-    (edgeItem) => edgeItem.in === vertexId && edgeItem.label === label
-  );
-}
-
-function hasOutgoingProvenance(graph: ChatRequest["graph"], delta: GraphDelta, vertexId: string): boolean {
-  return [...Object.values(graph.edges), ...delta.edges].some(
-    (edgeItem) =>
-      edgeItem.out === vertexId &&
-      ["supportedBy", "principleSupportedBy", "heuristicSupportedBy"].includes(edgeItem.label)
-  );
-}
-
-function provenanceEdgeFor(label: string): string {
-  if (label === "GuestExperiencePrinciple") return "principleSupportedBy";
-  if (label === "OperatingHeuristic" || label === "TimingRule") return "heuristicSupportedBy";
-  if (
-    [
-      "ServiceStandard",
-      "GuestSignal",
-      "GuestPersona",
-      "CheckInPolicy",
-      "CheckOutPolicy",
-      "ServiceFailure",
-      "RecoveryAction",
-      "ExceptionRule",
-      "DecisionRule",
-      "LoyaltyDriver",
-      "EmotionalMoment",
-      "ContextualConstraint",
-      "Outcome"
-    ].includes(label)
-  ) {
-    return "supportedBy";
-  }
-  return "";
-}
-
-function mergeUniqueById<T extends { id: string }>(first: T[], second: T[]): T[] {
-  const byId = new Map<string, T>();
-  for (const item of first) byId.set(item.id, item);
-  for (const item of second) byId.set(item.id, item);
-  return [...byId.values()];
 }
 
 function slug(text: string): string {

@@ -101,6 +101,7 @@ Emit only what the latest expert utterance adds. If the utterance is small talk,
 
 Core conventions:
 - Person root already exists as person:expert. Do not emit another Person unless the expert gives a concrete name; if needed, update person:expert.
+- Role, business type, scale, and tenure answers should use ExpertRole, HospitalityBusiness, and OperatingTenure, connected with hasRole, operatesBusiness, and hasOperatingTenure.
 - KnowledgeSession root already exists as session:hospitality:default and is linked from person:expert. Reuse it.
 - Use lowercase, hyphen-separated, colon-namespaced ids.
 - Do not use the full expert utterance as a knowledge vertex name. Names must be short semantic concepts, such as "hot towel welcome ritual", "rushed guest signal", or "flexible early check-in".
@@ -109,9 +110,9 @@ Core conventions:
 - Extract practical, lived-experience hospitality knowledge, not generic business advice.
 - Every extracted knowledge vertex should have a ProvenanceEvidence vertex when there is enough signal, using the expert's specific quote or a faithful paraphrase as traceText.
 - TranscriptEpisode and ProvenanceEvidence are supporting provenance. They must not be the only connected structure when hospitality knowledge is present.
-- Whenever you emit a hospitality knowledge vertex, also emit at least one visible hospitality-semantic edge when the latest utterance supports it: appliesToPersona, standardEnforces, signalTriggers, signalIndicates, governs, governsCheckOut, resolvedBy, exceptionAppliesTo, exceptionMadeFor, heuristicExplains, leadsTo, recoveryLeadsTo, shapesLoyalty, drivenBy, loyaltyLeadsTo, modulatedBy, or constraintAffectsPolicy.
+- Whenever you emit a hospitality knowledge vertex, also emit at least one visible hospitality-semantic edge when the latest utterance supports it: hasRole, operatesBusiness, hasOperatingTenure, businessDifferentiatedBy, experienceDesignedFor, standardEnforces, standardDeliveredTo, signalTriggers, signalIndicates, governs, governsCheckOut, resolvedBy, exceptionAppliesTo, exceptionMadeFor, heuristicExplains, leadsTo, recoveryLeadsTo, shapesLoyalty, drivenBy, loyaltyLeadsTo, modulatedBy, or constraintAffectsPolicy.
 - Infrastructure vertices are Person, KnowledgeSession, SessionSection, TranscriptEpisode, and ProvenanceEvidence.
-- Knowledge vertices include GuestExperiencePrinciple, ServiceStandard, GuestSignal, GuestPersona, CheckInPolicy, CheckOutPolicy, TimingRule, ServiceFailure, RecoveryAction, ExceptionRule, DecisionRule, OperatingHeuristic, LoyaltyDriver, EmotionalMoment, ContextualConstraint, and Outcome.
+- Knowledge vertices include ExpertRole, HospitalityBusiness, OperatingTenure, GuestExperiencePrinciple, ServiceStandard, GuestSignal, GuestPersona, CheckInPolicy, CheckOutPolicy, TimingRule, ServiceFailure, RecoveryAction, ExceptionRule, DecisionRule, OperatingHeuristic, LoyaltyDriver, EmotionalMoment, ContextualConstraint, and Outcome.
 - Use schema labels and edge directions exactly. Never invent labels or edge directions outside the schema reference.
 
 Good extraction choices:
@@ -204,6 +205,9 @@ export const domains: Record<DomainId, DomainConfig> = {
       colors: {
         Person: "#0f766e",
         KnowledgeSession: "#2563eb",
+        ExpertRole: "#0f766e",
+        HospitalityBusiness: "#2563eb",
+        OperatingTenure: "#64748b",
         GuestExperiencePrinciple: "#b2462e",
         ServiceStandard: "#e6a817",
         GuestSignal: "#7c3aed",
@@ -224,6 +228,9 @@ export const domains: Record<DomainId, DomainConfig> = {
       radii: {
         Person: 18,
         KnowledgeSession: 16,
+        ExpertRole: 13,
+        HospitalityBusiness: 15,
+        OperatingTenure: 13,
         GuestExperiencePrinciple: 15,
         DecisionRule: 15,
         OperatingHeuristic: 15,
@@ -232,7 +239,7 @@ export const domains: Record<DomainId, DomainConfig> = {
         ProvenanceEvidence: 10
       },
       hiddenLabels: ["KnowledgeSession", "SessionSection", "TranscriptEpisode", "ProvenanceEvidence"],
-      hiddenEdges: ["hasSession", "hasSection", "hasEpisode", "discusses", "discussesRule", "discussesHeuristic", "discussesFailure", "supportedBy", "principleSupportedBy", "heuristicSupportedBy"],
+      hiddenEdges: ["hasSession", "hasSection", "hasEpisode", "discusses", "discussesRule", "discussesHeuristic", "discussesFailure", "supportedBy", "principleSupportedBy", "heuristicSupportedBy", "appliesToPersona"],
       hiddenTextPatterns: [
         "^(okay|ok|sure|yes|yeah|great|thanks?)(\\b|[.!,'-])",
         "^let'?s\\s+(go|continue|start)",

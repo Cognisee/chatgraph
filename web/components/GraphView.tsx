@@ -27,6 +27,10 @@ function semanticLabel(vertex: GraphVertex, display?: GraphDisplayConfig): strin
   if (typeof v === "string" && v.length > 0) return v;
   const name = p.name;
   if (typeof name === "string" && name.length > 0) return name;
+  const title = p.title;
+  if (typeof title === "string" && title.length > 0) return title;
+  const duration = p.duration;
+  if (typeof duration === "string" && duration.length > 0) return duration;
   if (typeof v === "number") return String(v);
   if (label === "Headache" && typeof p.description === "string") return p.description;
   if (label === "FamilyHistory") {

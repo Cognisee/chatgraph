@@ -38,6 +38,7 @@ export class OpenAIRealtimeSession {
   private assistantResponsesBlocked = false;
   private lastAssistantTranscript = "";
   private lastAssistantTranscriptAt = 0;
+  private responseInFlight = false;
 
   constructor(private callbacks: RealtimeCallbacks) {}
 
@@ -108,6 +109,7 @@ export class OpenAIRealtimeSession {
     this.assistantResponsesBlocked = false;
     this.lastAssistantTranscript = "";
     this.lastAssistantTranscriptAt = 0;
+    this.responseInFlight = false;
     this.callbacks.onStatus("idle");
   }
 
@@ -142,8 +144,12 @@ export class OpenAIRealtimeSession {
       return;
     }
 
-    if (event.type === "response.created" && this.assistantResponsesBlocked) {
-      this.cancelResponse(event.response?.id);
+    if (event.type === "response.created") {
+      if (this.assistantResponsesBlocked || this.responseInFlight) {
+        this.cancelResponse(event.response?.id);
+        return;
+      }
+      this.responseInFlight = true;
       return;
     }
 
@@ -166,6 +172,7 @@ export class OpenAIRealtimeSession {
     }
 
     if (event.type === "response.done") {
+      this.responseInFlight = false;
       if (this.assistantResponsesBlocked) {
         this.assistantTranscript = "";
         return;

@@ -11,6 +11,41 @@
       }
     },
     {
+      "@key": "ExpertRole",
+      "@value": {
+        "label": "ExpertRole",
+        "id": { "string": {} },
+        "properties": [
+          { "key": "title",       "value": { "string": {} }, "required": true  },
+          { "key": "description", "value": { "string": {} }, "required": false }
+        ]
+      }
+    },
+    {
+      "@key": "HospitalityBusiness",
+      "@value": {
+        "label": "HospitalityBusiness",
+        "id": { "string": {} },
+        "properties": [
+          { "key": "name",          "value": { "string": {} }, "required": true  },
+          { "key": "businessType",  "value": { "string": {} }, "required": false },
+          { "key": "scale",         "value": { "string": {} }, "required": false },
+          { "key": "description",   "value": { "string": {} }, "required": false }
+        ]
+      }
+    },
+    {
+      "@key": "OperatingTenure",
+      "@value": {
+        "label": "OperatingTenure",
+        "id": { "string": {} },
+        "properties": [
+          { "key": "duration",    "value": { "string": {} }, "required": true  },
+          { "key": "description", "value": { "string": {} }, "required": false }
+        ]
+      }
+    },
+    {
       "@key": "KnowledgeSession",
       "@value": {
         "label": "KnowledgeSession",
@@ -302,6 +337,30 @@
       }
     },
     {
+      "@key": "hasRole",
+      "@value": {
+        "label": "hasRole",
+        "outV": "Person",
+        "inV": "ExpertRole"
+      }
+    },
+    {
+      "@key": "operatesBusiness",
+      "@value": {
+        "label": "operatesBusiness",
+        "outV": "Person",
+        "inV": "HospitalityBusiness"
+      }
+    },
+    {
+      "@key": "hasOperatingTenure",
+      "@value": {
+        "label": "hasOperatingTenure",
+        "outV": "HospitalityBusiness",
+        "inV": "OperatingTenure"
+      }
+    },
+    {
       "@key": "hasSection",
       "@value": {
         "label": "hasSection",
@@ -350,10 +409,26 @@
       }
     },
     {
-      "@key": "appliesToPersona",
+      "@key": "experienceDesignedFor",
       "@value": {
-        "label": "appliesToPersona",
+        "label": "experienceDesignedFor",
         "outV": "GuestExperiencePrinciple",
+        "inV": "GuestPersona"
+      }
+    },
+    {
+      "@key": "businessDifferentiatedBy",
+      "@value": {
+        "label": "businessDifferentiatedBy",
+        "outV": "HospitalityBusiness",
+        "inV": "GuestExperiencePrinciple"
+      }
+    },
+    {
+      "@key": "standardDeliveredTo",
+      "@value": {
+        "label": "standardDeliveredTo",
+        "outV": "ServiceStandard",
         "inV": "GuestPersona"
       }
     },
