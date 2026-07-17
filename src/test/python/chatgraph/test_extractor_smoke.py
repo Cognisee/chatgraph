@@ -1,14 +1,12 @@
 """Smoke test for the extractor against a clinically rich utterance.
 
 Not a unit test in the strict sense: it actually calls Claude Haiku,
-so it costs a few cents per run and requires ANTHROPIC_API_KEY +
-HYDRAPOP_HOME in the environment. Useful for checking that schema
-changes haven't broken the extractor's ability to produce a sensible
-delta.
+so it costs a few cents per run and requires ANTHROPIC_API_KEY in the
+environment. Useful for checking that schema changes haven't broken the
+extractor's ability to produce a sensible delta.
 
 Run with::
 
-    HYDRAPOP_HOME=/path/to/HydraPop \\
     .venv/bin/python -m pytest src/test/python/chatgraph/test_extractor_smoke.py -v -s
 """
 
@@ -18,11 +16,8 @@ import pytest
 
 
 needs_api_keys = pytest.mark.skipif(
-    not (
-        os.environ.get("ANTHROPIC_API_KEY")
-        and os.environ.get("HYDRAPOP_HOME")
-    ),
-    reason="ANTHROPIC_API_KEY and HYDRAPOP_HOME must be set",
+    not os.environ.get("ANTHROPIC_API_KEY"),
+    reason="ANTHROPIC_API_KEY must be set",
 )
 
 

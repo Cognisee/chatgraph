@@ -11,8 +11,8 @@ requires-python = ">=3.12"
 license = "Apache-2.0"
 
 dependencies = [
-    "hydra-kernel==0.15.0",
-    "hydra-pg==0.15.0",
+    "hydra-kernel==0.17.1",
+    "hydra-pg==0.17.1",
     "anthropic>=0.100",
     "deepgram-sdk>=7.0",
     "openai>=1.50",

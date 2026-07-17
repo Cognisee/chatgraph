@@ -8,7 +8,6 @@ Usage::
 
     cd /path/to/chatgraph
     source .venv/bin/activate
-    export HYDRAPOP_HOME=/path/to/HydraPop
     python bin/diagnose.py
 """
 
@@ -50,9 +49,7 @@ def check_env() -> bool:
         ok = bool(v)
         check(f"env {var}", ok, f"length={len(v)}" if ok else "(not set)")
         all_ok = all_ok and ok
-    check("env HYDRAPOP_HOME", bool(os.environ.get("HYDRAPOP_HOME")),
-          os.environ.get("HYDRAPOP_HOME", "(not set)"))
-    return all_ok and bool(os.environ.get("HYDRAPOP_HOME"))
+    return all_ok
 
 
 def check_audio() -> None:
