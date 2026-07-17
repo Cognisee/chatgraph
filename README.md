@@ -117,15 +117,11 @@ on dedicated worker threads bridged into the event loop.
   from the JSON at startup (no LLM in that generation step), so a schema
   change flows through without any hand-mirroring. The prose walkthrough
   in `docs/medical-schema.md` is **for humans only** — it is loaded by no
-  code, and if it ever disagrees with the JSON, the JSON wins. The
-  [HydraPop](https://github.com/CategoricalData/HydraPop) project
-  provides the Hydra ↔ TinkerPop bridge (`gremlin_to_hydra` for reading
-  the live graph back into Hydra values, `hydra_to_gremlin` for writing
-  a `hydra.pg.model.Graph` delta into Gremlin Server), plus the
-  PG-flavoured DSL helpers (`hydrapop.dsl.pg`) used by domain
-  `schema_build.py` modules. HydraPop is not yet published to any
-  package index and is loaded from a local clone via `HYDRAPOP_HOME`
-  (see Prerequisites).
+  code, and if it ever disagrees with the JSON, the JSON wins. Hydra's
+  Python overlay provides the Hydra ↔ TinkerPop bridge
+  (`hydra.overlay.python.tinkerpop.coder`: `gremlin_to_hydra` for
+  reading the live graph back into Hydra values, `hydra_to_gremlin` for
+  writing a `hydra.pg.model.Graph` delta into Gremlin Server).
 
 - **Persistence and resume.** TinkerPop's Gremlin Server is the only
   persistent store (everything else is per-process). On startup the
@@ -143,16 +139,9 @@ External services and processes:
 ## Prerequisites
 
 - Python 3.12+ (the venv is built with 3.13 and works).
-- A local clone of [HydraPop](https://github.com/CategoricalData/HydraPop),
-  pointed at via `HYDRAPOP_HOME`. The underlying Hydra runtime
-  (`hydra-kernel`, `hydra-pg`) is pulled from PyPI by
-  `pyproject.toml`; HydraPop itself — the Hydra ↔ TinkerPop bridge and
-  PG DSL helpers (`hydrapop.dsl.pg`, `hydrapop.encode`,
-  `hydrapop.gremlin_bridge`) — is not yet published to any package
-  index, so chatgraph imports it directly from the local clone via a
-  `sys.path` shim (`src/main/python/chatgraph/_hydrapop_bootstrap.py`). Tested
-  against HydraPop `main` at the same Hydra 0.15 line as the PyPI
-  pins above.
+- No source-level dependencies: the Hydra runtime (`hydra-kernel`,
+  `hydra-pg` 0.17.1, including the Hydra ↔ TinkerPop bridge in its
+  Python overlay) is pulled from PyPI by `pyproject.toml`.
 - A local install of [Apache TinkerPop Gremlin Server](https://tinkerpop.apache.org/downloads.html)
   (3.7.3 tested). The bundled config files in `config/gremlin/` start an empty
   TinkerGraph with `vertexIdManager=ANY` and a registered `g` traversal
@@ -207,13 +196,7 @@ pip install -e .
 # 2. Configure API keys.
 cp .env.example .env
 $EDITOR .env                       # fill in the three API keys
-
-# 3. Point at your local HydraPop clone.
-export HYDRAPOP_HOME=/path/to/HydraPop
 ```
-
-Put the `export HYDRAPOP_HOME=...` line in your shell rc so you don't
-have to repeat it.
 
 ## Start Gremlin Server
 
@@ -305,7 +288,7 @@ pytest src/test/python/chatgraph/test_extractor_smoke.py -v -s
 ```
 
 The smoke test calls Claude Haiku for real and costs a few cents per
-run. It requires `ANTHROPIC_API_KEY` and `HYDRAPOP_HOME` in the
+run. It requires `ANTHROPIC_API_KEY` in the
 environment. The test asserts that one rich utterance yields the
 expected vertex and edge labels in the extracted delta.
 
@@ -369,7 +352,6 @@ Environment variables (in `.env` or your shell):
 | `CHATGRAPH_TTS_VOICE` | `nova` | OpenAI TTS voice (e.g. `alloy` / `echo` / `nova` / `shimmer` / `verse`). `tts-1` accepts the classic six; `gpt-4o-mini-tts` adds more. |
 | `CHATGRAPH_TTS_SPEED` | `1.15` | Speech-rate multiplier for OpenAI TTS (`0.25`–`4.0`; `1.0` is normal pace). The default is slightly brisk; raise toward `1.3` for a punchier demo, lower toward `1.0` for a calmer read. Out-of-range values are clamped. |
 | `CHATGRAPH_LOG_LEVEL` | (unset) | Overrides the `-v` / `-vv` flags. Set to `INFO` or `DEBUG` if you want. |
-| `HYDRAPOP_HOME` | (required) | Absolute path to a local HydraPop clone. |
 
 If the agent jumps in too eagerly when you pause to think, the
 Deepgram Flux API supports `eot_threshold` and `eot_timeout_ms`
@@ -398,16 +380,16 @@ chatgraph/
       json/
         medical.json             # committed schema JSON for the medical domain
       python/chatgraph/
-        _hydrapop_bootstrap.py   # resolves $HYDRAPOP_HOME
         domains/
           __init__.py            # Domain dataclass + REGISTRY
           medical/               # the medical (headache) domain
             __init__.py          # exposes DOMAIN; registers itself
-            schema_build.py      # builds src/main/json/medical.json via hydrapop.dsl.pg
+            schema_build.py      # builds src/main/json/medical.json via chatgraph.schema.pgdsl
             agent_prompt.py      # OPENING_LINE + SYSTEM_PROMPT for the agent
             extractor_prompt.py  # EXTRACTOR_PROMPT_INTRO for the extractor
         schema/
           build.py               # CLI dispatcher: chatgraph-build-schema <domain>
+          pgdsl.py               # schema-authoring builders + canonical JSON encoder
         chat/
           audio.py               # mic + speaker + Silero VAD; cancellable playback
           stt.py                 # Deepgram Flux v2 socket wrapper (async over sync recv)
@@ -424,12 +406,10 @@ chatgraph/
 ```
 
 The `src/main/python/<package>` and `src/test/python/<package>` layout
-matches the convention used across Hydra-family projects (Hydra,
-HydraPop, the Hydra Python dist packages).
+matches the convention used across Hydra-family projects (Hydra, the
+Hydra Python dist packages).
 
 ## Troubleshooting
-
-**`HYDRAPOP_HOME is not set`** — export it (see One-time setup).
 
 **`ANTHROPIC_API_KEY is not set`** — fill in `.env` or export the key.
 
@@ -443,7 +423,7 @@ disabled that, restore it in `chat/main.py`.
 
 **`addE(...) failed because the to() traversal ... does not map to a value`**
 on the first run — a previous-session Headache vertex is missing. Pass
-`--fresh` or accept the stub-vertex fallback (HydraPop creates a
+`--fresh` or accept the stub-vertex fallback (the bridge creates a
 placeholder so the edge still lands).
 
 **Long delay before the opening greeting** — OpenAI's first TTS
