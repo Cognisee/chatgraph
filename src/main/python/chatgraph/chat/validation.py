@@ -12,10 +12,8 @@ Why we can't just call ``validate_graph``
 graph it is handed: it validates every vertex (label + id + properties),
 and it resolves every edge endpoint against that same ``graph.vertices``
 map, reporting ``OutVertexNotFound`` / ``InVertexNotFound`` when an
-endpoint is missing. Older Hydra exposed a ``label_for_vertex_id``
-resolver argument that let the caller supply endpoint labels from
-elsewhere (or disable the cross-graph check); the current API has
-removed that argument and always resolves against ``graph.vertices``.
+endpoint is missing. It offers no way to supply endpoint labels from
+elsewhere, or to disable the cross-graph check.
 
 So for a delta whose edges legitimately point at live-graph vertices we
 are stuck between two options that both fail:
@@ -54,8 +52,8 @@ We bypass the top-level ``validate_graph`` and drive Hydra's still-public
 (``RollingContext.vertex_labels``): seeded once from the live graph at
 session start, then grown as each validated delta is written.
 
-The returned :class:`hydrapop.validate.Result` carries the typed error
-(if any). ``repr(result)`` produces a one-line string suitable for
+The returned :class:`Result` (from Hydra's TinkerPop coder) carries the
+typed error (if any). ``repr(result)`` produces a one-line string suitable for
 echoing back to the LLM as corrective feedback. The repr is intentionally
 the dataclass dump of the typed error; it is verbose but identical
 across Hydra's polyglot bindings (Python / Java / Scala / ...), so
@@ -68,11 +66,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 import hydra.error.pg as epg
-import hydra.lib.maps as maps
 import hydra.pg.model as pg
 import hydra.validate.pg as pg_validation
-from hydra.dsl.python import Just, Nothing
-from hydrapop.validate import Result, check_literal
+from hydra.overlay.python.dsl.python import Given, None_
+from hydra.overlay.python.tinkerpop.coder import Result, check_literal
 
 
 def validate_delta(
@@ -88,7 +85,7 @@ def validate_delta(
     id -> label of vertices already in the live graph). An endpoint in
     neither set is reported as not-found.
 
-    Returns a :class:`hydrapop.validate.Result`. Use ``result.is_valid``
+    Returns a :class:`Result`. Use ``result.is_valid``
     to test for success; ``result.error`` for the typed
     ``InvalidGraphError`` (or ``None``); ``repr(result)`` for a
     human-readable string suitable for LLM feedback.
@@ -96,22 +93,25 @@ def validate_delta(
     known = known_labels or {}
 
     # Resolver: delta vertices win, then fall back to the known live-graph
-    # labels. Returns Just(VertexLabel) when the id is known, Nothing()
-    # otherwise (-> the edge check reports it as not-found).
+    # labels. Returns Given(VertexLabel) when the id is known, None_()
+    # otherwise (-> the edge check reports it as not-found). These are
+    # Hydra's optionals, not Python's: a bare None here silently breaks
+    # validate_edge's fold.
     def label_for_vertex_id(vid):
-        v = _lookup(delta.vertices, vid)
+        v = delta.vertices.get(vid)
         if v is not None:
-            return Just(v.label)
+            return Given(v.label)
         label = known.get(vid.value)
         if label is not None:
-            return Just(pg.VertexLabel(label))
-        return Nothing()
+            return Given(pg.VertexLabel(label))
+        return None_()
 
-    resolver = Just(label_for_vertex_id)
+    resolver = Given(label_for_vertex_id)
+    profile = pg_validation.default_pg_profile()
 
     # Validate the delta's own vertices (full check: label/id/properties).
     for v in delta.vertices.values():
-        typ = _lookup(schema.vertices, v.label)
+        typ = schema.vertices.get(v.label)
         if typ is None:
             return Result(
                 epg.InvalidGraphErrorVertex(
@@ -123,18 +123,20 @@ def validate_delta(
                     )
                 )
             )
-        match pg_validation.validate_vertex(check_literal, typ, v):
-            case Just(err):
-                return Result(
-                    epg.InvalidGraphErrorVertex(
-                        epg.InvalidGraphVertexError(v.id, err)
-                    )
+        err = _first_error(
+            pg_validation.validate_vertex(profile, check_literal, typ, v)
+        )
+        if err is not None:
+            return Result(
+                epg.InvalidGraphErrorVertex(
+                    epg.InvalidGraphVertexError(v.id, err)
                 )
+            )
 
     # Validate each edge (full check) with endpoint resolution against
     # delta + known labels.
     for e in delta.edges.values():
-        typ = _lookup(schema.edges, e.label)
+        typ = schema.edges.get(e.label)
         if typ is None:
             return Result(
                 epg.InvalidGraphErrorEdge(
@@ -146,21 +148,27 @@ def validate_delta(
                     )
                 )
             )
-        match pg_validation.validate_edge(check_literal, resolver, typ, e):
-            case Just(err):
-                return Result(
-                    epg.InvalidGraphErrorEdge(
-                        epg.InvalidGraphEdgeError(e.id, err)
-                    )
+        err = _first_error(
+            pg_validation.validate_edge(
+                profile, check_literal, resolver, typ, e
+            )
+        )
+        if err is not None:
+            return Result(
+                epg.InvalidGraphErrorEdge(
+                    epg.InvalidGraphEdgeError(e.id, err)
                 )
+            )
 
     return Result(None)
 
 
-def _lookup(m, key):
-    """Unwrap ``hydra.lib.maps.lookup`` (a Maybe) into a value or None."""
-    match maps.lookup(key, m):
-        case Just(v):
-            return v
-        case _:
-            return None
+def _first_error(result):
+    """First error from a ``hydra.validation.ValidationResult``, or None.
+
+    ``errors`` is a ConsList; validate_delta reports one error at a time,
+    so we surface the first and ignore warnings.
+    """
+    for err in result.errors:
+        return err
+    return None

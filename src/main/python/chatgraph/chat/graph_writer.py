@@ -1,4 +1,4 @@
-"""Async wrapper around hydrapop.gremlin_bridge.hydra_to_gremlin.
+"""Async wrapper around hydra.overlay.python.tinkerpop.coder.hydra_to_gremlin.
 
 Owns the gremlinpython DriverRemoteConnection and exposes an async
 ``write(graph)`` that runs the synchronous Gremlin writes on a worker
@@ -121,7 +121,7 @@ class GremlinWriter:
         """
         if self._g is None:
             return None
-        from hydrapop.gremlin_bridge import gremlin_to_hydra
+        from hydra.overlay.python.tinkerpop.coder import gremlin_to_hydra
 
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, lambda: gremlin_to_hydra(self._g))
@@ -167,7 +167,7 @@ class GremlinWriter:
 
     async def _drain(self) -> None:
         """Worker loop: pop deltas off the queue and write them in order."""
-        from hydrapop.gremlin_bridge import hydra_to_gremlin
+        from hydra.overlay.python.tinkerpop.coder import hydra_to_gremlin
 
         loop = asyncio.get_running_loop()
         while True:

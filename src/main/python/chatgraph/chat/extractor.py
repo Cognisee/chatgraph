@@ -70,8 +70,7 @@ from typing import TYPE_CHECKING
 import anthropic
 import hydra.core as core
 import hydra.pg.model as pg
-from hydra.dsl.python import FrozenDict
-from hydrapop.decode import decode_graph_schema
+from hydra.overlay.python.dsl.python import FrozenDict
 
 if TYPE_CHECKING:
     from chatgraph.domains import Domain
@@ -102,15 +101,15 @@ def _allowlists_from_schema(schema: dict) -> tuple[
     """
     allowed_vertex_props: dict[str, set[str]] = {}
     for entry in schema["vertices"]:
-        label = entry["@key"]
-        props = {p["key"] for p in entry["@value"].get("properties", [])}
+        label = entry["key"]
+        props = {p["key"] for p in entry["value"].get("properties", [])}
         allowed_vertex_props[label] = props
 
     allowed_edges: dict[str, tuple[str, str]] = {}
     allowed_edge_props: dict[str, set[str]] = {}
     for entry in schema["edges"]:
-        label = entry["@key"]
-        v = entry["@value"]
+        label = entry["key"]
+        v = entry["value"]
         allowed_edges[label] = (v["out"], v["in"])
         allowed_edge_props[label] = {p["key"] for p in v.get("properties", [])}
 
@@ -120,14 +119,15 @@ def _allowlists_from_schema(schema: dict) -> tuple[
     return allowed_vertex_props, allowed_edges, allowed_edge_props, vocabulary
 
 
-def _literal_type_name(value: dict) -> str:
+def _literal_type_name(value) -> str:
     """Render a property's JSON literal-type node as a short string.
 
-    The schema encodes a property type as a single-key dict, e.g.
-    ``{"string": {}}`` -> ``"string"`` or ``{"integer": {"int32": {}}}``
-    -> ``"int32"``. Returns the innermost type name so the prompt shows
-    the model exactly what JSON scalar a property expects (the chief
-    cause of validation retries is emitting the wrong scalar type).
+    Hydra encodes a simple literal type as a bare string (``"string"``,
+    ``"boolean"``) and a parameterized one as a single-key dict
+    (``{"integer": "int32"}`` -> ``"int32"``). Returns the innermost
+    name so the prompt shows the model exactly what JSON scalar a
+    property expects (the chief cause of validation retries is emitting
+    the wrong scalar type).
     """
     node = value
     name = "?"
@@ -135,7 +135,7 @@ def _literal_type_name(value: dict) -> str:
     while isinstance(node, dict) and node:
         name = next(iter(node))
         node = node[name]
-    return name
+    return node if isinstance(node, str) else name
 
 
 def _prop_types_from_schema(
@@ -153,15 +153,92 @@ def _prop_types_from_schema(
     out: dict[str, dict[str, tuple[str, bool]]] = {}
     for section in ("vertices", "edges"):
         for entry in schema[section]:
-            label = entry["@key"]
+            label = entry["key"]
             detail: dict[str, tuple[str, bool]] = {}
-            for p in entry["@value"].get("properties", []):
+            for p in entry["value"].get("properties", []):
                 detail[p["key"]] = (
                     _literal_type_name(p.get("value", {})),
                     bool(p.get("required", False)),
                 )
             out[label] = detail
     return out
+
+
+_SIMPLE_LITERAL_TYPES = {
+    "binary": core.LiteralTypeBinary,
+    "boolean": core.LiteralTypeBoolean,
+    "string": core.LiteralTypeString,
+}
+
+_INTEGER_TYPES = {t.name.lower(): t for t in core.IntegerType}
+_FLOAT_TYPES = {t.name.lower(): t for t in core.FloatType}
+
+
+def _decode_literal_type(value) -> core.LiteralType:
+    """Decode a JSON literal-type node into a ``hydra.core.LiteralType``.
+
+    Inverse of ``hydra.encode.core.literal_type``: a simple type is a
+    bare string (``"string"``), a parameterized one a single-key dict
+    (``{"integer": "int32"}``). Hydra's own decoder wants a term-level
+    graph context we have no use for here, so we read the JSON the
+    schema already gives us.
+    """
+    if isinstance(value, str):
+        ctor = _SIMPLE_LITERAL_TYPES.get(value)
+        if ctor is None:
+            raise ValueError(f"Unknown literal type: {value!r}")
+        return ctor()
+    if isinstance(value, dict) and len(value) == 1:
+        tag, arg = next(iter(value.items()))
+        if tag == "integer":
+            return core.LiteralTypeInteger(_INTEGER_TYPES[arg])
+        if tag == "float":
+            return core.LiteralTypeFloat(_FLOAT_TYPES[arg])
+    raise ValueError(f"Unknown literal type: {value!r}")
+
+
+def _decode_property_type(p: dict) -> pg.PropertyType:
+    return pg.PropertyType(
+        key=pg.PropertyKey(p["key"]),
+        value=_decode_literal_type(p["value"]),
+        required=bool(p.get("required", False)),
+    )
+
+
+def _decode_graph_schema(schema: dict) -> pg.GraphSchema:
+    """Decode the committed schema JSON into a ``pg.GraphSchema``.
+
+    The JSON is the single source of truth (see CLAUDE.md); this is the
+    typed view of it that ``validate_delta`` checks each delta against.
+    Maps are encoded as lists of ``{"key": ..., "value": ...}`` entries.
+    """
+    vertices = {}
+    for entry in schema["vertices"]:
+        v = entry["value"]
+        label = pg.VertexLabel(entry["key"])
+        vertices[label] = pg.VertexType(
+            label=label,
+            id=_decode_literal_type(v["id"]),
+            properties=[
+                _decode_property_type(p) for p in v.get("properties", [])
+            ],
+        )
+
+    edges = {}
+    for entry in schema["edges"]:
+        e = entry["value"]
+        label = pg.EdgeLabel(entry["key"])
+        edges[label] = pg.EdgeType(
+            label=label,
+            id=_decode_literal_type(e["id"]),
+            out=pg.VertexLabel(e["out"]),
+            in_=pg.VertexLabel(e["in"]),
+            properties=[
+                _decode_property_type(p) for p in e.get("properties", [])
+            ],
+        )
+
+    return pg.GraphSchema(vertices=vertices, edges=edges)
 
 
 @dataclass
@@ -503,7 +580,7 @@ class Extractor:
             self._vocabulary_labels,
         ) = _allowlists_from_schema(schema_json)
         self._prop_types = _prop_types_from_schema(schema_json)
-        self._schema = decode_graph_schema(schema_json)
+        self._schema = _decode_graph_schema(schema_json)
 
         # System prompt = domain-supplied intro + schema reference.
         self._system_prompt = domain.extractor_prompt_intro + _format_schema_reference(

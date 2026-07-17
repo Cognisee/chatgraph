@@ -685,7 +685,7 @@ async def _ensure_person(graph_writer: GremlinWriter, coord: "Coordinator") -> N
     """
     import hydra.core as core
     import hydra.pg.model as pg
-    from hydra.dsl.python import FrozenDict
+    from hydra.overlay.python.dsl.python import FrozenDict
 
     graph = await graph_writer.load_graph()
     if graph is not None:
