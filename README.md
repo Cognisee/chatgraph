@@ -389,7 +389,7 @@ chatgraph/
             extractor_prompt.py  # EXTRACTOR_PROMPT_INTRO for the extractor
         schema/
           build.py               # CLI dispatcher: chatgraph-build-schema <domain>
-          pgdsl.py               # schema-authoring builders + canonical JSON encoder
+          pgdsl.py               # fluent sugar over Hydra's PG DSL + JSON coder
         chat/
           audio.py               # mic + speaker + Silero VAD; cancellable playback
           stt.py                 # Deepgram Flux v2 socket wrapper (async over sync recv)

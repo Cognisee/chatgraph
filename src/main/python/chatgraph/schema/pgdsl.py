@@ -6,119 +6,142 @@ readable Python, then calls :func:`encode_graph_schema` to emit the
 canonical JSON that the application actually loads (see "Schema: one
 source of truth" in ``CLAUDE.md``).
 
-Hydra ships a property-graph DSL of its own at ``hydra.dsl.pg.model``,
-but it is a *term-level* DSL: it builds ``TypedTerm`` values for use
-inside Hydra programs, not the plain ``hydra.pg.model`` dataclasses we
-want to hand to the encoder. These builders are a thin fluent wrapper
-over those dataclasses -- ``vertex_type(...).property(...).build()`` --
-which keeps a large schema readable::
+Everything of substance here is Hydra's. The schema is built with Hydra's
+own PG DSL (``hydra.dsl.pg.model``), plain Python values are lifted into
+terms with Hydra's term DSL (``hydra.overlay.python.dsl.terms``), and the
+JSON is rendered by ``hydra.json.encode`` / ``hydra.json.writer``.
+Literal types come straight from ``hydra.dsl.core`` -- domains import
+those themselves, so this module does not re-export them.
 
+Because ``hydra.dsl.pg.model`` is a *term-level* DSL -- every constructor
+returns a ``hydra.typed.TypedTerm`` wrapping a ``hydra.core.Term`` -- a
+schema assembled from it *is* the encoded term. There is no separate
+``hydra.encode.pg.model`` pass; :func:`encode_graph_schema` just renders
+the term as JSON.
+
+What this module adds is only sugar. The DSL constructors are positional
+and take terms for every argument (``vertex_type(label, id, properties)``),
+which does not scale to a 77-vertex clinical schema. These builders wrap
+them in the fluent style the domain modules are written in::
+
+    s = hydra.dsl.core.literal_type_string
     person = (
-        vertex_type("Person", string())
-        .property("name", string(), False)
+        vertex_type("Person", s)
+        .property("name", s, False)
         .build()
     )
-
-:func:`encode_graph_schema` mirrors the reference chain in Hydra's own
-``demos/validatepg`` (``GenerateData.java``): encode the schema to a
-``hydra.core.Term``, render that term as JSON, and print it.
 """
 
 from __future__ import annotations
 
-import hydra.encode.core as encode_core
-import hydra.encode.pg.model as encode_pg
+import hydra.dsl.pg.model as dsl_pg
 import hydra.json.encode as json_encode
 import hydra.json.writer as json_writer
-import hydra.pg.model as pg
-from hydra.overlay.python.dsl.literal_types import boolean, int32, string
+import hydra.overlay.python.dsl.terms as terms
+import hydra.typed as typed
 
 __all__ = [
-    "boolean",
     "edge_type",
     "encode_graph_schema",
     "graph_schema",
-    "int32",
-    "string",
     "vertex_type",
 ]
 
+
+def _term(value) -> typed.TypedTerm:
+    """Re-wrap a raw ``hydra.core.Term`` as a ``TypedTerm`` for the DSL."""
+    return typed.TypedTerm(value)
+
+
+# -- Element type builders --
 
 class _ElementTypeBuilder:
     """Shared ``.property(...)`` accumulation for vertex/edge builders."""
 
     def __init__(self):
-        self._properties: list[pg.PropertyType] = []
+        self._properties: list[typed.TypedTerm] = []
 
-    def property(self, key: str, value, required: bool = False):
-        """Declare a property. ``value`` is a ``hydra.core.LiteralType``."""
+    def property(self, key: str, value: typed.TypedTerm, required: bool = False):
+        """Declare a property. ``value`` is a literal type term, e.g.
+        ``hydra.dsl.core.literal_type_string``."""
         self._properties.append(
-            pg.PropertyType(
-                key=pg.PropertyKey(key), value=value, required=required
+            dsl_pg.property_type(
+                _term(terms.string(key)), value, _term(terms.boolean(required))
             )
         )
         return self
 
+    def _properties_term(self) -> typed.TypedTerm:
+        return _term(terms.list_([p.value for p in self._properties]))
+
 
 class VertexTypeBuilder(_ElementTypeBuilder):
-    def __init__(self, label: str, id_type):
+    def __init__(self, label: str, id_type: typed.TypedTerm):
         super().__init__()
         self._label = label
         self._id_type = id_type
 
-    def build(self) -> pg.VertexType:
-        return pg.VertexType(
-            label=pg.VertexLabel(self._label),
-            id=self._id_type,
-            properties=tuple(self._properties),
+    def build(self) -> tuple[str, typed.TypedTerm]:
+        """Return ``(label, term)``; :func:`graph_schema` keys on the label."""
+        return self._label, dsl_pg.vertex_type(
+            _term(terms.string(self._label)),
+            self._id_type,
+            self._properties_term(),
         )
 
 
 class EdgeTypeBuilder(_ElementTypeBuilder):
-    def __init__(self, label: str, id_type, out: str, in_: str):
+    def __init__(self, label: str, id_type: typed.TypedTerm, out: str, in_: str):
         super().__init__()
         self._label = label
         self._id_type = id_type
         self._out = out
         self._in = in_
 
-    def build(self) -> pg.EdgeType:
-        return pg.EdgeType(
-            label=pg.EdgeLabel(self._label),
-            id=self._id_type,
-            out=pg.VertexLabel(self._out),
-            in_=pg.VertexLabel(self._in),
-            properties=tuple(self._properties),
+    def build(self) -> tuple[str, typed.TypedTerm]:
+        """Return ``(label, term)``; :func:`graph_schema` keys on the label."""
+        return self._label, dsl_pg.edge_type(
+            _term(terms.string(self._label)),
+            self._id_type,
+            _term(terms.string(self._out)),
+            _term(terms.string(self._in)),
+            self._properties_term(),
         )
 
 
-def vertex_type(label: str, id_type) -> VertexTypeBuilder:
+def vertex_type(label: str, id_type: typed.TypedTerm) -> VertexTypeBuilder:
     """Start a vertex type. Chain ``.property(...)``, end with ``.build()``."""
     return VertexTypeBuilder(label, id_type)
 
 
-def edge_type(label: str, id_type, out: str, in_: str) -> EdgeTypeBuilder:
+def edge_type(
+    label: str, id_type: typed.TypedTerm, out: str, in_: str
+) -> EdgeTypeBuilder:
     """Start an edge type from ``out`` to ``in_`` (vertex labels)."""
     return EdgeTypeBuilder(label, id_type, out, in_)
 
 
-def graph_schema(vertices, edges) -> pg.GraphSchema:
-    """Assemble built vertex/edge types into a ``GraphSchema``."""
-    return pg.GraphSchema(
-        vertices={vt.label: vt for vt in vertices},
-        edges={et.label: et for et in edges},
-    )
+def graph_schema(vertices, edges) -> typed.TypedTerm:
+    """Assemble built vertex/edge types into a ``GraphSchema`` term.
 
-
-def encode_graph_schema(schema: pg.GraphSchema) -> str:
-    """Encode a ``GraphSchema`` as canonical Hydra JSON text.
-
-    Mirrors ``hydra.demos.validatepg.GenerateData``: PG model -> Term ->
-    JSON value -> text.
+    Both arguments are sequences of ``(label, term)`` pairs as returned
+    by ``VertexTypeBuilder.build()`` / ``EdgeTypeBuilder.build()``.
     """
-    term = encode_pg.graph_schema(encode_core.literal_type, schema)
-    result = json_encode.to_json_untyped(term)
-    value = getattr(result, "value", None)
-    if value is None or type(result).__name__ == "Left":
-        raise ValueError(f"Failed to encode schema to JSON: {result}")
-    return json_writer.print_json(value)
+    def as_map(pairs):
+        return _term(
+            terms.map_({terms.string(label): t.value for label, t in pairs})
+        )
+
+    return dsl_pg.graph_schema(as_map(vertices), as_map(edges))
+
+
+def encode_graph_schema(schema: typed.TypedTerm) -> str:
+    """Render a ``GraphSchema`` term as canonical Hydra JSON text.
+
+    The DSL already produced the term, so this is just Hydra's JSON
+    coder: Term -> JSON value -> text.
+    """
+    result = json_encode.to_json_untyped(schema.value)
+    if type(result).__name__ == "Left":
+        raise ValueError(f"Failed to encode schema to JSON: {result.value}")
+    return json_writer.print_json(result.value)

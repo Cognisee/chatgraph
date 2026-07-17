@@ -54,16 +54,16 @@ Naming conventions:
 * Edge labels are camelCase.
 """
 
+import json
 import sys
 from pathlib import Path
 
+import hydra.dsl.core as dsl_core
+
 from chatgraph.schema.pgdsl import (
-    boolean,
     edge_type,
     encode_graph_schema,
     graph_schema,
-    int32,
-    string,
     vertex_type,
 )
 
@@ -253,9 +253,11 @@ VOCABULARY_LABELS = (
 
 
 def build_schema():
-    s = string()
-    i = int32()
-    b = boolean()
+    # Literal types straight from Hydra's DSL: the simple ones are values,
+    # the parameterized ones (int32) are functions over a type argument.
+    s = dsl_core.literal_type_string
+    b = dsl_core.literal_type_boolean
+    i = dsl_core.literal_type_integer(dsl_core.integer_type_int32)
 
     # -----------------------------------------------------------------
     # VERTEX TYPES
@@ -811,14 +813,17 @@ def schema_path() -> Path:
 
 
 def main() -> int:
-    schema = build_schema()
-    encoded = encode_graph_schema(schema)
+    encoded = encode_graph_schema(build_schema())
     out = schema_path()
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(encoded + "\n")
+    # Count off the encoded JSON rather than the schema: build_schema now
+    # returns a Hydra term, whose shape is Hydra's business, not ours.
+    counts = json.loads(encoded)
     print(f"Wrote {out}")
     print(
-        f"  {len(schema.vertices)} vertex types, {len(schema.edges)} edge types"
+        f"  {len(counts['vertices'])} vertex types,"
+        f" {len(counts['edges'])} edge types"
     )
     return 0
 

@@ -67,18 +67,24 @@ The chain is one-directional:
    and the committed JSON would stand on its own. The runtime never
    imports it.
 
-   `schema_build.py` builds the schema with the fluent builders in
-   `chatgraph/schema/pgdsl.py` and serializes it through Hydra's own
-   coders. Hydra ships a PG DSL at `hydra.dsl.pg.model`, but it is a
-   *term-level* DSL — it produces `TypedTerm` values for use inside
-   Hydra programs, not the plain `hydra.pg.model` dataclasses the
-   encoder takes — so `pgdsl` wraps those dataclasses directly to keep
-   a 77-vertex schema readable. Serialization is Hydra-canonical and
-   mirrors Hydra's own `demos/validatepg` (`GenerateData.java`):
-   PG model → `hydra.encode.pg.model` → `hydra.core.Term` →
-   `hydra.json.encode` → `hydra.json.writer`. Note `hydra.json.*` are
-   the executable coders; `hydra.dsl.json.*` are their term-level
-   counterparts and are *not* what you want here.
+   `schema_build.py` builds the schema with Hydra's own PG DSL
+   (`hydra.dsl.pg.model`), lifting plain values into terms with Hydra's
+   term DSL (`hydra.overlay.python.dsl.terms`) and taking literal types
+   from `hydra.dsl.core`. Because that PG DSL is *term-level* — every
+   constructor returns a `hydra.typed.TypedTerm` wrapping a
+   `hydra.core.Term` — the assembled schema *is* the encoded term, so
+   there is no `hydra.encode.pg.model` step: `hydra.json.encode` →
+   `hydra.json.writer` renders it straight to canonical JSON. Note
+   `hydra.json.*` are the executable coders; `hydra.dsl.json.*` are
+   their term-level counterparts and are *not* what you want here.
+
+   `chatgraph/schema/pgdsl.py` adds nothing but sugar: the DSL
+   constructors are positional and take terms for every argument
+   (`vertex_type(label, id, properties)`), which does not scale to 77
+   vertex types, so it wraps them in the fluent
+   `vertex_type(...).property(...).build()` style the domain modules are
+   written in. Keep it thin — anything it does that Hydra already
+   provides is a bug, not a feature.
 2. `src/main/json/<domain>.json` is the canonical schema artifact, and
    the only thing the runtime loads.
 3. The **extractor's schema reference** — the vertex/edge/property table
