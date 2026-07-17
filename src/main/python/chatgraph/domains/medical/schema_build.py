@@ -52,18 +52,20 @@ reasons:
 Naming conventions:
 * Vertex labels are PascalCase.
 * Edge labels are camelCase.
-
-Requires ``HYDRAPOP_HOME`` to be set.
 """
 
-import json
 import sys
 from pathlib import Path
 
-import chatgraph  # noqa: F401  -- triggers HydraPop bootstrap
-
-from hydrapop.dsl.pg import edge_type, graph_schema, int32, string, vertex_type
-from hydrapop.encode import encode_graph_schema
+from chatgraph.schema.pgdsl import (
+    boolean,
+    edge_type,
+    encode_graph_schema,
+    graph_schema,
+    int32,
+    string,
+    vertex_type,
+)
 
 
 # =====================================================================
@@ -250,22 +252,10 @@ VOCABULARY_LABELS = (
 )
 
 
-def _boolean_type():
-    """Build a Hydra boolean LiteralType. ``hydrapop.dsl.pg`` may not
-    export a ``boolean_type`` helper in all versions; fall back to
-    ``hydra.core`` if needed."""
-    try:
-        from hydrapop.dsl.pg import boolean_type  # type: ignore[attr-defined]
-        return boolean_type()
-    except ImportError:
-        import hydra.core as core
-        return core.LiteralTypeBoolean()
-
-
 def build_schema():
     s = string()
     i = int32()
-    b = _boolean_type()
+    b = boolean()
 
     # -----------------------------------------------------------------
     # VERTEX TYPES
@@ -825,7 +815,7 @@ def main() -> int:
     encoded = encode_graph_schema(schema)
     out = schema_path()
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(encoded, indent=2) + "\n")
+    out.write_text(encoded + "\n")
     print(f"Wrote {out}")
     print(
         f"  {len(schema.vertices)} vertex types, {len(schema.edges)} edge types"
