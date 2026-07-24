@@ -1,8 +1,10 @@
 # chatgraph
 
-chatgraph is a browser-based prototype for guided interviews that build a live knowledge graph as the conversation unfolds.
+chatgraph is a live knowledge-elicitation system: a domain expert speaks or types, one language model conducts a structured interview, a second proposes a typed property graph of what was said, and a **deterministic symbolic gate** decides, fact by fact, what is allowed to persist. Nothing enters the graph without an admission decision that binds it to the expert's own words.
 
-The app pairs a conversational assistant with a graph extractor. The assistant asks domain-specific follow-up questions, while the extractor turns the user's answers into typed vertices and edges. The result is a transcript on the left and a live graph on the right, updating turn by turn.
+> **Research paper:** [`final draft v3.md`](final%20draft%20v3.md) (KG-NeSy 2026). **Architecture:** [`architecture latest.md`](architecture%20latest.md). **Measurement record:** [`results/`](results/), with the iteration history in [`results/iterations/`](results/iterations/).
+
+The app pairs a conversational assistant with a governed graph extractor. The assistant asks domain-specific follow-up questions, while the extractor turns the expert's answers into typed vertices and edges that the gate admits, rejects with a typed error for a bounded retry, or repairs. The result is a transcript on the left and a live, provenance-carrying graph on the right, updating turn by turn.
 
 Current use cases:
 
@@ -164,18 +166,29 @@ while drift is non-zero. `npm test` asserts drift is zero.
 
 ## Evaluation
 
-`results/` holds a measured staged ablation (A0–A5) of the gate over a real elicitation
-session. The harness imports the deployed gate, so a result is a claim about the shipped
-system, and extraction is stateless so that only the gate varies across conditions.
+`results/` holds a measured staged ablation (A0–A5) of the gate over a four-session
+elicitation corpus (196 expert turns, 164 eligible). The harness imports the deployed gate,
+so a result is a claim about the shipped system, and extraction is stateless so that only
+the gate varies across conditions.
 
-Headline: ungated extraction converts **2.1%** of what it proposes into knowledge that is
-both schema-conforming and judge-confirmed; every gated configuration converts **73–80%**.
-Constrained decoding raises ontology conformance from 2.1% to 95.6% while *lowering*
-evidential faithfulness from 95.8% to 82.2% — structure is not grounding.
+Headline (final corpus, 164 turns): the full gate produces **2.17** usable, grounded,
+audited facts per interview turn versus **1.84** for constrained decoding alone — a paired
+contrast significant at **p = 0.0019** (exact McNemar) whose significance strengthened
+monotonically as the corpus grew from 32 → 70 → 164 turns. Ungated free-form extraction
+converts only **2.1%** of its output into schema-conforming knowledge; every gated
+configuration reaches **100%** ontology conformance and zero duplicates. A cross-family
+live audit of the deployed graphs finds the fact layer strong (evidential faithfulness
+**92.9%**, verbatim-span rule held on **208/211** grounded items) and the relationship
+layer the honest frontier (**43.8%** of edges supported).
 
-See `results/results.md` for the full narrative, `results/table1.md` for the table, and
-`NeSy2026_Paper_DRAFT_LaTeX_preview.md` for the write-up. `npm test` verifies that every
-figure in the paper matches `results/metrics.json`.
+- **Research paper:** [`final draft v3.md`](final%20draft%20v3.md) — the KG-NeSy 2026
+  submission draft. `npm run test:paper` fails CI if any figure in it diverges from
+  `results/metrics.json`.
+- **Architecture reference:** [`architecture latest.md`](architecture%20latest.md) — layers,
+  per-turn flow, the six gate constraint classes, provenance, identity, and grounding.
+- **The measurement record:** `results/results.md` (narrative), `results/table1.md` (table),
+  `results/claims.md` (claim registry), and `results/iterations/` — every methodological
+  iteration frozen with its metrics snapshot, negative results included.
 
 Per-turn rows, the API cache, and the audit sample quote the expert verbatim and are
 **not committed**; regenerate them locally with `npm run ablation`.
