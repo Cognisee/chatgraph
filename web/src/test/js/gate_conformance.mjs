@@ -1047,6 +1047,128 @@ test("the export bundle carries the gate report, the gate log aggregates it, and
   assert.equal(audit.spanPreCheck.fail, 0);
 });
 
+test("container-anchored edges are never offered to the extractor", () => {
+  const en = extractionToolSchema("hospitality").properties.edges.items.properties.label.enum;
+  for (const label of ["discusses", "discussesRule", "hasEpisode", "hasSection", "hasSession"]) {
+    assert.ok(!en.includes(label), `${label} must not be offered: the extractor cannot know scaffold ids`);
+  }
+  for (const label of ["operatesBusiness", "standardEnforces", "signalIndicates"]) {
+    assert.ok(en.includes(label), `${label} must remain offered`);
+  }
+  assert.ok(!schemaReference("hospitality").includes("discusses"), "the schema reference must not mention container edges");
+});
+
+test("a fragment turn is skipped, not extracted (live-trial supersession bug)", async () => {
+  const stub = stubOpenAI({ vertices: [], edges: [] });
+  const result = await extractGovernedDelta(stub.client, "So if it's in Japan, then our check-in time is", {
+    domainId: "hospitality",
+    messages: [{ id: "m1", role: "user", content: "So if it's in Japan, then our check-in time is", createdAt: 0 }],
+    graph: EMPTY_GRAPH
+  });
+  assert.equal(stub.calls.length, 0, "no extractor call on a fragment");
+  assert.equal(result.gate.skippedAsFragment, true);
+  assert.equal(result.delta.vertices.length, 0);
+});
+
+test("a fact already grounded keeps its original provenance (first witness wins)", () => {
+  const graph = graphWith(
+    { id: "person:expert", label: "Person", properties: { name: "expert" } },
+    { id: "servicestandard:aaaa1111bbbb2222", label: "ServiceStandard", properties: { name: "Hot towel on arrival" } },
+    { id: "evidence:servicestandard:aaaa1111bbbb2222", label: "ProvenanceEvidence", properties: { traceText: "original quote", sourceEpisode: "ep:old", speaker: "expert" } }
+  );
+  const result = runGate(
+    {
+      vertices: [{
+        id: "servicestandard:aaaa1111bbbb2222", label: "ServiceStandard",
+        properties: { name: "Hot towel on arrival" },
+        evidence: { traceText: "we hand every guest a hot towel" }
+      }],
+      edges: []
+    },
+    graph, "hospitality",
+    { deterministicIds: true, evidenceContext: { ...CONTEXT, utterance: UTTERANCE } }
+  );
+  assert.ok(
+    !result.delta.vertices.some((v) => v.label === "ProvenanceEvidence"),
+    "no replacement evidence may be materialized for an already-grounded fact"
+  );
+  assert.ok(
+    result.findings.some((f) => f.ruleId === "HR006" && f.message.includes("already grounded")),
+    "the retention must be reported"
+  );
+  assert.ok(
+    !result.findings.some((f) => f.message.includes("different concept") && String(f.subjectId).startsWith("evidence:")),
+    "identity consistency must never judge evidence vertices"
+  );
+});
+
+test("identical retry feedback twice stops the attempt loop", async () => {
+  const bad = {
+    vertices: [{ id: "standard:a", label: "ServiceStandard", properties: { name: "Warm welcome" }, evidence: { traceText: "greet every guest by name" } }],
+    edges: [{ id: "e:bad", label: "standardEnforces", out: "standard:a", in: "principle:missing" }]
+  };
+  const stub = stubOpenAI([bad, bad, bad]);
+  const result = await extractGovernedDelta(stub.client, "We greet every guest by name.", {
+    domainId: "hospitality",
+    messages: [{ id: "m1", role: "user", content: "We greet every guest by name.", createdAt: 0 }],
+    graph: EMPTY_GRAPH
+  });
+  assert.equal(stub.calls.length, 2, "an unfixable rejection must stop after two identical corrections");
+  assert.ok(result.delta.vertices.some((v) => v.label === "ServiceStandard"), "the best attempt is still kept");
+});
+
+test("HR004 rejections name the legal alternatives", () => {
+  const result = runGate(
+    {
+      vertices: [
+        knowledge("driver:a", "LoyaltyDriver", { name: "Loyalty program" }, "we hand every guest a hot towel"),
+        knowledge("principle:b", "GuestExperiencePrinciple", { name: "Warmth" }, "we hand every guest a hot towel")
+      ],
+      edges: [{ id: "e:1", label: "shapesLoyalty", out: "driver:a", in: "principle:b" }]
+    },
+    EMPTY_GRAPH, "hospitality", { evidenceContext: { ...CONTEXT, utterance: UTTERANCE } }
+  );
+  const f = result.findings.find((x) => x.ruleId === "HR004");
+  assert.ok(f, "the illegal edge must be rejected");
+  assert.ok(/valid (from|into)/.test(f.message), `the rejection must suggest legal edges, got: ${f.message}`);
+});
+
+test("the opening line never classifies a section; early turns land in section A", async () => {
+  const { getDomain } = await import("@/lib/domains");
+  const openingLine = getDomain("hospitality").openingLine;
+  const stub = stubOpenAI({ vertices: [], edges: [] });
+  const result = await extractGovernedDelta(stub.client, "We greet every guest by name at the door.", {
+    domainId: "hospitality",
+    messages: [
+      { id: "a0", role: "assistant", content: openingLine, createdAt: 0 },
+      { id: "m1", role: "user", content: "We greet every guest by name at the door.", createdAt: 1 }
+    ],
+    graph: EMPTY_GRAPH
+  });
+  const section = result.delta.vertices.find((v) => v.label === "SessionSection");
+  assert.ok(section, "a section is scaffolded");
+  assert.equal(section.properties.order, 1, `the opening line matched a later section: got order ${section.properties.order}`);
+});
+
+test("one stray keyword in acknowledgment prose cannot leap sections", async () => {
+  const graph = graphWith(
+    { id: "person:expert", label: "Person", properties: { name: "expert" } },
+    { id: "session:hospitality:default", label: "KnowledgeSession", properties: { domain: "hospitality" } },
+    { id: "section:session:hospitality:default:2", label: "SessionSection", properties: { sectionType: "B", title: "Guest Experience Principles", order: 2 } }
+  );
+  const stub = stubOpenAI({ vertices: [], edges: [] });
+  const result = await extractGovernedDelta(stub.client, "We greet every guest by name at the door.", {
+    domainId: "hospitality",
+    messages: [
+      { id: "a1", role: "assistant", content: "That consistency point is really useful. What are the service standards you never compromise on?", createdAt: 0 },
+      { id: "m1", role: "user", content: "We greet every guest by name at the door.", createdAt: 1 }
+    ],
+    graph
+  });
+  const section = result.delta.vertices.find((v) => v.label === "SessionSection");
+  assert.ok(section.properties.order <= 3, `single G keyword ("consistency") must not jump B->G: got order ${section.properties.order}`);
+});
+
 test("assertion-only property guidance is derived from the schema's type declarations", () => {
   const text = provenanceInstructions("hospitality");
   assert.ok(text.includes("ASSERTION-ONLY"), "the padding guard must be present");

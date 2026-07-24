@@ -129,17 +129,22 @@ const hospitalityExtractorIntro = `You extract structured property-graph data fr
 
 Emit only what the latest expert utterance adds. If the utterance is small talk, filler, a clarification request, or has no substantive hospitality knowledge, emit nothing.
 
+Capture EVERYTHING the utterance asserts. Before emitting, silently enumerate every distinct knowledge point in the utterance — a single expert turn frequently states two to four separate facts (a principle AND a signal AND a policy detail), and each distinct point deserves its own vertex. Under-extraction loses the expert's knowledge permanently; a second concept mentioned alongside a first is not a property of the first, it is another vertex. Never merge two distinct claims into one vertex, and never skip a claim because you already emitted one this turn.
+
 Core conventions:
 - Person root already exists as person:expert. Do not emit another Person unless the expert gives a concrete name; if needed, update person:expert.
 - KnowledgeSession root already exists as session:hospitality:default and is linked from person:expert. Reuse it. The session, section, and transcript episode for this turn are created for you — do not emit them.
 - Use lowercase, hyphen-separated, colon-namespaced ids.
 - Do not use the full expert utterance as a knowledge vertex name. Names must be short semantic concepts, such as "hot towel welcome ritual", "rushed guest signal", or "flexible early check-in".
 - ruleText, heuristic, and description values must be concise normalized statements in third person ("Early check-in granted only when a room is ready and the guest informed in advance"), never verbatim quotes — the quote belongs in evidence.traceText, the distilled rule in the property.
+- Rule-shaped labels (DecisionRule, TimingRule, OperatingHeuristic, ExceptionRule) are ONLY for actual conditional, timing, or if/then statements. A general belief or philosophy ("we target a peaceful experience") is a GuestExperiencePrinciple, never a rule. Mis-typing a principle as a rule corrupts the graph.
+- Property values must come from THIS utterance. Never fill a property with content remembered from an earlier turn: if this utterance does not state the value, omit the property, even when a previous turn stated it.
 - Every property value must be grounded in what the expert actually said. Never pad optional properties with your own elaboration: if the expert did not state a description, a primaryNeed, a severity, or any other optional value, OMIT that property entirely rather than inventing plausible content for it. A property the evidence quote cannot support is a hallucination.
 - Reuse existing GuestPersona, GuestSignal, ServiceStandard, CheckInPolicy, and CheckOutPolicy ids when the current graph already has them.
 - CheckInPolicy and CheckOutPolicy are session singletons. Use ids policy:checkin:session:hospitality:default and policy:checkout:session:hospitality:default.
 - Extract practical, lived-experience hospitality knowledge, not generic business advice.
 - Connect what you emit: every knowledge vertex you emit MUST carry at least one semantic edge to another knowledge vertex — newly emitted, or existing via its exact id from KNOWN ENTITIES — whenever the utterance states or implies any relationship. A vertex with no semantic edge should be a rare exception, not the norm: a principle belongs to the business that practices it, a signal indicates something, a rule governs something. Prefer connecting new knowledge to what the graph already holds.
+- Before emitting an edge, check the EDGES inventory for its exact direction and endpoint types, and pick the relation whose declared endpoints match your two vertices. If no listed relation fits the pair, emit NO edge for that pair — never bend a different relation to connect them.
 
 Good extraction choices:
 - A belief about excellent hospitality -> GuestExperiencePrinciple.
@@ -158,7 +163,7 @@ const hospitalitySections: InterviewSection[] = [
   { key: "A", title: "Introduction", order: 1,
     keywords: ["role", "business type", "operated", "operating", "successful", "pacing", "knowledge capture", "confirm"] },
   { key: "B", title: "Guest Experience Principles", order: 2,
-    keywords: ["guests love", "satisfaction", "subtle signs", "repeat customers", "never-compromise", "excellent hospitality", "remember after", "small details"] },
+    keywords: ["guests love", "satisfaction", "subtle signs", "repeat customers", "never compromise", "excellent hospitality", "remember after", "small details"] },
   { key: "C", title: "Arrival, Check-In, and Timing", order: 3,
     keywords: ["check-in", "check in", "checkout", "check-out", "early", "arrival", "room readiness", "sweet spot", "sweet-spot", "late fee", "waiver", "timing"] },
   { key: "D", title: "Service Recovery and Flexibility", order: 4,

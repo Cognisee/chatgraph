@@ -68,6 +68,8 @@ export interface TurnGateReport {
   /** 1-based attempt whose delta was admitted; 0 when nothing was extracted. */
   chosenAttempt: number;
   skippedAsFiller?: boolean;
+  /** The turn arrived cut off mid-sentence; the interviewer re-asks. */
+  skippedAsFragment?: boolean;
 }
 
 /** What extraction did with one user turn: the delta admitted and the warnings. */

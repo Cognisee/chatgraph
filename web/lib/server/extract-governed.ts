@@ -20,7 +20,7 @@ import { gateContract } from "@/lib/gate/contract";
 import { runGate, type GateFinding } from "@/lib/gate/gate";
 import { extractionToolSchema, knownEntitiesSummary, provenanceInstructions, schemaReference } from "@/lib/gate/prompt";
 import { getDomain } from "@/lib/domains";
-import { isFillerTurn } from "@/lib/filler";
+import { isFillerTurn, isFragmentTurn } from "@/lib/filler";
 import type { ChatRequest, GateAttemptReport, GraphDelta, GraphState, TurnGateReport } from "@/lib/types";
 
 const DEFAULT_EXTRACTOR_MODEL = "gpt-4o-mini";
@@ -46,6 +46,18 @@ export async function extractGovernedDelta(
       gate: { attempts: [], chosenAttempt: 0, skippedAsFiller: true }
     };
   }
+  // A turn cut off mid-sentence is not evidence of anything: extracting from it
+  // mints facts whose property values can only come from surrounding context
+  // (the live trial produced a CheckInPolicy quoting the PREVIOUS turn's times,
+  // which then superseded that turn's correct policy). The interviewer asks the
+  // expert to finish the thought, so the content arrives complete next turn.
+  if (isFragmentTurn(latestText)) {
+    return {
+      delta: { vertices: [], edges: [] },
+      warnings: [],
+      gate: { attempts: [], chosenAttempt: 0, skippedAsFragment: true }
+    };
+  }
 
   const previousQuestion = [...body.messages].reverse().find(
     (message) => message.role === "assistant"
@@ -57,6 +69,7 @@ export async function extractGovernedDelta(
 
   let best: { delta: GraphDelta; warnings: string[]; score: number; attempt: number } | null = null;
   let feedback = "";
+  let lastRetryFeedback = "";
   const attempts: GateAttemptReport[] = [];
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
@@ -112,6 +125,8 @@ export async function extractGovernedDelta(
     attempts.push(report);
 
     if (result.retryFeedback) {
+      if (result.retryFeedback === lastRetryFeedback) break;
+      lastRetryFeedback = result.retryFeedback;
       feedback = `${result.retryFeedback}\n\nSchema:\n${schemaReference(domainId)}`;
       report.retryFeedback = result.retryFeedback;
       continue;
@@ -230,10 +245,18 @@ function classifySection(
   graph: GraphState,
   previousQuestion: string
 ): { key: string; title: string; order: number } {
-  const sections = getDomain(domainId).interviewSections;
+  const domain = getDomain(domainId);
+  const sections = domain.interviewSections;
   if (!sections || sections.length === 0) return { key: "session", title: "Session", order: 1 };
 
-  const question = previousQuestion.toLowerCase();
+  // The opening line describes the WHOLE session ("…heuristics, rules,
+  // customer-experience judgment…") and matched section E on the live trial's
+  // very first turn, after which monotonic carry-forward pinned the entire
+  // interview in the wrong half of the structure. It is not a question; it
+  // never classifies.
+  const question = previousQuestion.trim() === domain.openingLine.trim()
+    ? ""
+    : previousQuestion.toLowerCase();
   let best: { section: (typeof sections)[number]; hits: number } | null = null;
   for (const section of sections) {
     const hits = section.keywords.filter((keyword) => question.includes(keyword)).length;
@@ -248,7 +271,12 @@ function classifySection(
       .filter((vertex) => vertex.label === "SessionSection")
       .map((vertex) => (typeof vertex.properties.order === "number" ? vertex.properties.order : 1))
   );
-  const chosen = best && best.section.order >= reached
+  // A single stray keyword in acknowledgment prose must not leap sections:
+  // advancing more than one section beyond the furthest reached needs at least
+  // two keyword hits.
+  const plausible = best && best.section.order >= reached &&
+    (best.section.order <= reached + 1 || best.hits >= 2);
+  const chosen = plausible && best
     ? best.section
     : sections.find((section) => section.order === reached) ?? sections[0];
   return { key: chosen.key, title: chosen.title, order: chosen.order };

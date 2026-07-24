@@ -25,7 +25,7 @@ export function schemaReference(domainId: string): string {
   const edgeLines = [...contract.edgeSpecs.values()]
     // Gate-authored edges are omitted: provenance and supersession are attached
     // by the gate, so offering them would invite the extractor to guess.
-    .filter((spec) => !gateAuthored(contract, spec.label))
+    .filter((spec) => !gateAuthored(contract, spec.label) && !containerAnchored(contract, spec.label))
     .filter((spec) => [...spec.out].every((label) => vertexSet.has(label)) && [...spec.in].every((label) => vertexSet.has(label)))
     .map((spec) => `${spec.label}: ${[...spec.out].join(" | ")} -> ${[...spec.in].join(" | ")}`);
   return `VERTICES\n${vertexLines.join("\n")}\n\nEDGES\n${edgeLines.join("\n")}`;
@@ -90,7 +90,9 @@ export function extractionToolSchema(domainId: string): Record<string, unknown> 
             id: { type: "string" },
             label: {
               type: "string",
-              enum: [...contract.edgeSpecs.keys()].filter((label) => !gateAuthored(contract, label))
+              enum: [...contract.edgeSpecs.keys()].filter(
+                (label) => !gateAuthored(contract, label) && !containerAnchored(contract, label)
+              )
             },
             out: { type: "string" },
             in: { type: "string" },
@@ -108,6 +110,25 @@ export function extractionToolSchema(domainId: string): Record<string, unknown> 
 /** True for edges only the gate may write. */
 export function gateAuthored(contract: GateContract, edgeLabel: string): boolean {
   return contract.provenanceEdgeLabels.has(edgeLabel) || edgeLabel === SUPERSEDED_BY;
+}
+
+/**
+ * True for edges anchored on structural containers (episodes, sections, the
+ * session) whose ids only the deterministic scaffold knows. Offering these to
+ * the extractor is how the live trial burned most of its retry budget: the
+ * model kept guessing episode ids ("transcript:episode:1",
+ * "transcriptepisode:latest") for `discusses` edges and collected HR004/HR005
+ * rejections it could never fix — 21 of the session's 24 hard drops. The
+ * episode→fact link already exists structurally via evidence.sourceEpisode,
+ * so removing these from the vocabulary loses nothing.
+ */
+export function containerAnchored(contract: GateContract, edgeLabel: string): boolean {
+  const spec = contract.edgeSpecs.get(edgeLabel);
+  if (!spec) return false;
+  const containers = new Set([...contract.infrastructureLabels].filter((label) => label !== "Person"));
+  if (containers.size === 0) return false;
+  const allIn = (labels: Set<string>) => labels.size > 0 && [...labels].every((label) => containers.has(label));
+  return allIn(spec.out) || allIn(spec.in);
 }
 
 /**

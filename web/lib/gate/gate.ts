@@ -158,7 +158,7 @@ export function runGate(
   // Materialize inline evidence before validation, so the synthesized vertices and
   // edges are held to exactly the same rules as extractor-authored ones.
   const materialized = governed
-    ? materializeEvidence(candidates, contract, findings, options)
+    ? materializeEvidence(candidates, contract, findings, options, graph)
     : { vertices: [], edges: [] };
 
   const admittedVertices: GraphVertex[] = [];
@@ -221,7 +221,7 @@ export function runGate(
     const outLabel = labels.get(item.out) ?? "";
     const inLabel = labels.get(item.in) ?? "";
     if (!endpointsConform(contract, item.label, outLabel, inLabel)) {
-      findings.push(finding("HR004", severityOf(contract, "HR004", "hard", options), `${item.label} connects ${outLabel}->${inLabel}, expected ${expectedEndpoints(contract, item.label)}`, item.id || null, "dropped"));
+      findings.push(finding("HR004", severityOf(contract, "HR004", "hard", options), `${item.label} connects ${outLabel}->${inLabel}, expected ${expectedEndpoints(contract, item.label)}${edgeSuggestions(contract, outLabel, inLabel)}`, item.id || null, "dropped"));
       continue;
     }
     const id = item.id || `${item.out}--${item.label}-->${item.in}`;
@@ -277,6 +277,10 @@ export function runGate(
 
   if (governed && options.deterministicIds) {
     for (const vertex of admittedVertices) {
+      // Only knowledge vertices have content-derived identity; evidence and
+      // other infrastructure ids are structural and are never re-hashed, so
+      // judging them here produced repair findings that never happened.
+      if (!contract.knowledgeLabels.has(vertex.label)) continue;
       const existing = graph.vertices[vertex.id];
       if (!existing || existing.label !== vertex.label) continue;
       // Iteration-05 protected every reused id from re-hashing, which let a
@@ -587,7 +591,8 @@ function materializeEvidence(
   candidates: Candidate[],
   contract: GateContract,
   findings: GateFinding[],
-  options: GateOptions
+  options: GateOptions,
+  graph: GraphState
 ): { vertices: Candidate[]; edges: ParsedEdge[] } {
   const context = options.evidenceContext;
   const vertices: Candidate[] = [];
@@ -597,6 +602,14 @@ function materializeEvidence(
   for (const candidate of candidates) {
     if (!contract.knowledgeLabels.has(candidate.label)) continue;
     if (!candidate.evidence) continue;
+    // First witness wins: a fact that is already grounded in the graph keeps
+    // the provenance that licensed its admission. Re-emitting the fact with a
+    // different quote must not silently replace the original evidence (the
+    // live trial showed exactly that churn via last-write-wins merging).
+    if (graph.vertices[`evidence:${candidate.id}`]) {
+      findings.push(finding("HR006", "advisory", `${candidate.id} is already grounded; original provenance retained`, candidate.id, "repaired"));
+      continue;
+    }
     const edgeLabel = contract.provenanceEdgeByLabel.get(candidate.label);
     if (!edgeLabel) {
       findings.push(finding("HR007", severityOf(contract, "HR007", "soft", options), `no provenance edge is mapped for ${candidate.label}`, candidate.id, "flagged"));
@@ -828,6 +841,23 @@ function endpointsConform(contract: GateContract, edgeLabel: string, outLabel: s
   const spec = contract.edgeSpecs.get(edgeLabel);
   if (!spec) return false;
   return spec.out.has(outLabel) && spec.in.has(inLabel);
+}
+
+/**
+ * When an edge fails endpoint typing, name what WOULD be legal between these
+ * labels — the live trial showed the extractor repeating the same illegal edge
+ * across all three attempts because the error told it only what was wrong.
+ */
+function edgeSuggestions(contract: GateContract, outLabel: string, inLabel: string): string {
+  const semantic = [...contract.edgeSpecs.values()].filter(
+    (spec) => !contract.provenanceEdgeLabels.has(spec.label) && spec.label !== SUPERSEDED_BY
+  );
+  const from = semantic.filter((spec) => spec.out.has(outLabel)).map((spec) => `${spec.label}->${[...spec.in].join("|")}`).slice(0, 4);
+  const into = semantic.filter((spec) => spec.in.has(inLabel)).map((spec) => `${[...spec.out].join("|")}->${spec.label}`).slice(0, 4);
+  const parts = [];
+  if (from.length) parts.push(`valid from ${outLabel}: ${from.join(", ")}`);
+  if (into.length) parts.push(`valid into ${inLabel}: ${into.join(", ")}`);
+  return parts.length ? `. ${parts.join("; ")}` : "";
 }
 
 function expectedEndpoints(contract: GateContract, edgeLabel: string): string {
