@@ -456,14 +456,31 @@ def _build_extract_tool(
         "name": "emit_graph_delta",
         "description": (
             "Emit the new vertices and edges captured from the latest "
-            "patient utterance. Emit nothing if the utterance has no "
-            "substantive content."
+            "utterance by the interview subject. Emit nothing if the "
+            "utterance has no substantive content.\n\n"
+            "CONNECTIVITY IS REQUIRED. Every vertex you emit must be "
+            "attached to the graph by at least one edge in the same "
+            "delta -- either to another vertex in this delta, or to a "
+            "vertex already in the graph (listed in the user message). "
+            "A vertex with no edge is unreachable and worthless: it "
+            "will not appear connected in the graph and tells nobody "
+            "anything.\n\n"
+            "Before returning, check the `edges` array against the "
+            "`vertices` array. If any vertex id appears in no edge, "
+            "either add the edge that connects it or remove the "
+            "vertex. `edges` should almost never be empty when "
+            "`vertices` is non-empty -- 4 vertices with 5 edges is a "
+            "good delta; 12 vertices with 0 edges is a failed one."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "vertices": {
                     "type": "array",
+                    "description": (
+                        "New vertices. Every one of these ids must also "
+                        "appear in at least one edge below."
+                    ),
                     "items": {
                         "type": "object",
                         "properties": {
@@ -482,6 +499,13 @@ def _build_extract_tool(
                 },
                 "edges": {
                     "type": "array",
+                    "description": (
+                        "Edges connecting the new vertices to each "
+                        "other and to the existing graph. Emit these in "
+                        "the SAME call as the vertices they connect -- "
+                        "not in a later turn. Endpoints may be vertices "
+                        "from this delta or ids already in the graph."
+                    ),
                     "items": {
                         "type": "object",
                         "properties": {
@@ -633,7 +657,17 @@ class Extractor:
             try:
                 resp = await self._client.messages.create(
                     model=self._model,
-                    max_tokens=1024,
+                    # Must be generous. The tool call emits `vertices`
+                    # then `edges`, so a budget that runs out partway
+                    # truncates the response *after* the vertices and
+                    # *before* the edges -- yielding a delta of orphan
+                    # vertices with stop_reason=max_tokens. At 1024 this
+                    # happened on every substantial utterance, and looked
+                    # exactly like the model ignoring instructions: no
+                    # amount of prompting fixed it, and a stronger model
+                    # failed identically. A rich utterance can easily
+                    # need 2-3k tokens for the vertex properties alone.
+                    max_tokens=8192,
                     system=self._system_prompt,
                     tools=[self._tool],
                     tool_choice={"type": "tool", "name": "emit_graph_delta"},
@@ -642,6 +676,17 @@ class Extractor:
             except Exception:
                 log.exception("Extractor: Anthropic call failed")
                 return ExtractionResult(delta=_empty_graph())
+
+            # Truncation is silent and its symptom is misleading: the
+            # delta arrives with vertices but no edges, which reads as
+            # the model ignoring the connectivity rule. Say so loudly.
+            if getattr(resp, "stop_reason", None) == "max_tokens":
+                log.warning(
+                    "Extractor: response hit max_tokens (%s output "
+                    "tokens); the delta is TRUNCATED and its edges are "
+                    "probably missing. Raise max_tokens.",
+                    getattr(getattr(resp, "usage", None), "output_tokens", "?"),
+                )
 
             tool_use = next(
                 (b for b in resp.content if getattr(b, "type", None) == "tool_use"),
@@ -670,6 +715,71 @@ class Extractor:
                 self._schema, result.delta, context.vertex_labels
             )
             if validation.is_valid:
+                # Schema-valid but possibly useless: a delta of vertices
+                # with no edges passes every type check and still adds
+                # nothing navigable to the graph. Orphans were the single
+                # biggest quality problem in early sessions (37 of 50
+                # vertices unreachable in one run), and prompt-level
+                # instructions alone did not fix it -- so reject orphans
+                # here and let the existing retry loop ask for a
+                # correction, exactly as with a type error.
+                orphans = _orphan_vertex_ids(result.delta)
+                if orphans and attempt < MAX_EXTRACTION_ATTEMPTS:
+                    # Be explicit that the fix is to ADD EDGES, keeping
+                    # the vertices. Told merely to "correct the error",
+                    # the model takes the cheap way out and re-emits an
+                    # empty delta -- which passes the orphan check and
+                    # loses the entire utterance.
+                    last_error_message = (
+                        "These vertices have no edge connecting them to "
+                        "anything: " + ", ".join(sorted(orphans)) + ".\n\n"
+                        "FIX BY ADDING EDGES, NOT BY REMOVING VERTICES. "
+                        "Keep the vertices -- they capture real content "
+                        "from the utterance. For each one, find the edge "
+                        "in the schema reference that connects it to "
+                        "another vertex in this delta or to a known id, "
+                        "and add that edge. Typical shapes: "
+                        "Pilot -uses-> Procedure -hasStep-> Step "
+                        "-servesPurpose-> Purpose; "
+                        "Pilot -reads-> Cue -cueObservedDuring-> Step; "
+                        "Site -hasHazard-> Hazard; "
+                        "Cue -cueFrom-> InformationSource; "
+                        "Cue -cueIndicates-> ConditionFactor.\n\n"
+                        "Re-emit the FULL delta: the same vertices, plus "
+                        "the edges that connect them. Do NOT return an "
+                        "empty delta -- that discards the utterance."
+                    )
+                    log.warning(
+                        "Extractor: %d orphan vertex/vertices (attempt "
+                        "%d/%d): %s",
+                        len(orphans), attempt, MAX_EXTRACTION_ATTEMPTS,
+                        ", ".join(sorted(orphans)),
+                    )
+                    messages.append(
+                        {"role": "assistant", "content": resp.content}
+                    )
+                    messages.append(_validation_feedback_message(
+                        tool_use_id=tool_use.id,
+                        error_message=last_error_message,
+                    ))
+                    continue
+
+                if orphans:
+                    # Out of attempts. Keep the connected part rather than
+                    # dropping the whole delta -- a partial graph beats
+                    # nothing, and the utterance is not coming back.
+                    log.warning(
+                        "Extractor: dropping %d orphan vertex/vertices "
+                        "after %d attempts: %s",
+                        len(orphans), attempt, ", ".join(sorted(orphans)),
+                    )
+                    result = ExtractionResult(
+                        delta=_without_vertices(result.delta, orphans),
+                        new_current_headache_id=result.new_current_headache_id,
+                        patient_signaled_done=result.patient_signaled_done,
+                        patient_resumed=result.patient_resumed,
+                    )
+
                 if attempt > 1:
                     log.info(
                         "Extractor: delta valid after %d attempt(s)", attempt
@@ -753,13 +863,28 @@ class Extractor:
                 f"{current}\n"
             )
 
+        # The connectivity reminder is repeated HERE, at the very end of
+        # the user message, on purpose. The system prompt is ~26k chars
+        # (mostly the generated schema reference), and an instruction
+        # placed near its top is reliably ignored: both Haiku and Sonnet
+        # emitted 9-11 orphan vertices per delta despite an emphatic
+        # rule up there. Restating it as the last thing the model reads
+        # before emitting is what actually changes the output. Keep it
+        # short -- this competes with the utterance for attention.
         return (
             f"root vertex id (the interview subject; use as `out` of "
             f"edges that hang off the subject): {person}\n"
             f"{known_block}"
             f"\nRecent turns (oldest first):\n{history}\n"
             f"{medical_block}"
-            f"\nLatest utterance from the interview subject:\n  {utterance}"
+            f"\nLatest utterance from the interview subject:\n  {utterance}\n"
+            f"\n---\n"
+            f"REMINDER: every vertex you emit needs at least one edge in "
+            f"the same delta connecting it to another vertex here or to "
+            f"an id listed above. Write the `edges` array FIRST, then "
+            f"emit exactly the vertices those edges refer to. If "
+            f"`vertices` is non-empty and `edges` is empty, you have "
+            f"made a mistake."
         )
 
 
@@ -768,6 +893,41 @@ class Extractor:
 
 def _empty_graph() -> pg.Graph:
     return pg.Graph(vertices=FrozenDict({}), edges=FrozenDict({}))
+
+
+def _orphan_vertex_ids(delta: pg.Graph) -> set[str]:
+    """Ids of vertices in ``delta`` that no edge in ``delta`` touches.
+
+    A delta is a *partial* graph, so an edge may legitimately point at a
+    vertex that lives only in the live graph from earlier turns. What
+    cannot be justified is a vertex this delta introduces and then
+    connects to nothing: no edge here, and (being new) no edge anywhere
+    else either. Such a vertex is unreachable in the graph -- it renders
+    as a floating dot in a viewer and answers no query.
+    """
+    touched: set[str] = set()
+    for e in delta.edges.values():
+        touched.add(e.out.value)
+        touched.add(e.in_.value)
+    return {
+        vid.value for vid in delta.vertices
+        if vid.value not in touched
+    }
+
+
+def _without_vertices(delta: pg.Graph, drop: set[str]) -> pg.Graph:
+    """Return ``delta`` minus the named vertices.
+
+    Edges are left untouched: a vertex being dropped is by definition
+    referenced by no edge in this delta, so nothing can dangle.
+    """
+    return pg.Graph(
+        vertices=FrozenDict({
+            vid: v for vid, v in delta.vertices.items()
+            if vid.value not in drop
+        }),
+        edges=delta.edges,
+    )
 
 
 def _validation_feedback_message(*, tool_use_id: str, error_message: str) -> dict:
