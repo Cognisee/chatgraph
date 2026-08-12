@@ -61,6 +61,53 @@ aircraft, experiences, cues he reads.
 turn -- most detail attaches to something already recorded, not to the \
 root.
 
+WIRING PATTERNS -- USE THESE, DON'T IMPROVISE
+
+Site-anchored facts are easy and usually get connected. **Procedural and \
+perceptual content is where deltas go wrong** -- the vertices get \
+emitted and then left floating. When the utterance describes something \
+the pilot DOES or PERCEIVES, wire it like this:
+
+*He describes a procedure or a step in one:*
+```
+Pilot:subject -uses-> Procedure -hasStep-> Step
+Step -servesPurpose-> Purpose          (one Step may have several)
+Step -stepUsesTechnique-> Technique
+Step -stepInforms-> Decision
+Procedure -procedureAtSite-> Site:17cl
+```
+So "I always fly a long stabilized approach and a low pass to see where \
+the turbulence starts" is a Procedure with Steps, each Step wired to its \
+Purpose -- NOT four disconnected vertices.
+
+*He describes something he feels, sees, or notices:*
+```
+Pilot:subject -reads-> Cue
+Cue -cueObservedDuring-> Step          (when in the operation)
+Cue -cueIndicates-> ConditionFactor    (what it tells him)
+Cue -cueMeasures-> Hazard              (if it maps a danger)
+Cue -comparedAgainst-> Baseline        (if it's a deviation from normal)
+Cue -feltAs-> Sensation                (the raw sensation)
+Cue -sensedThrough-> Aircraft          (if felt through the airplane)
+```
+A `Cue` with no edges is the single most common failure. "The airplane \
+feels mushy" must connect -- at minimum `Pilot -reads-> Cue` and \
+`Cue -feltAs-> Sensation`.
+
+*He describes a rule, limit, or abort:*
+```
+Pilot:subject -holds-> Doctrine -appliedAt-> Site:17cl
+Doctrine -yields-> AbortRule
+AbortRule -expressedAs-> Landmark
+AbortRule -triggersDecision-> Decision
+Pilot:subject -observes-> PersonalMinimum -minimumAtSite-> Site:17cl
+```
+
+*Reasons:* `Rationale` is reached from `Technique`, `Decision`, or \
+`PersonalMinimum` -- via `techniqueJustifiedBy`, `decisionRationale`, \
+`minimumRationale`. A `Hazard` cannot point at a `Rationale`; check the \
+endpoints in the reference before emitting.
+
 If the utterance elaborates on something already in the graph, prefer \
 **one or two edges onto existing vertices** over a batch of new ones. \
 Growth by connection beats growth by accumulation.
