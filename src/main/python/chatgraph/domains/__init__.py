@@ -65,6 +65,12 @@ class Domain:
             domain-agnostic prose ("patient", "pilot"). Used in
             runtime-generated prompts (e.g. the resume opening) so they
             don't read as medical in a non-medical domain.
+        stt_keyterms: domain vocabulary passed to the speech-to-text
+            engine to bias recognition. Proper nouns and jargon are
+            where a general model fails worst, and its mistakes become
+            graph facts -- "Citabria" heard as "Sudavia" produced an
+            ``Aircraft:sudavia`` vertex in one session. List the terms
+            whose misrecognition would be most damaging.
     """
 
     name: str
@@ -77,6 +83,7 @@ class Domain:
     root_id: str = "Person:patient"
     root_properties: tuple[tuple[str, str], ...] = (("name", "patient"),)
     subject_noun: str = "patient"
+    stt_keyterms: tuple[str, ...] = ()
 
 
 REGISTRY: dict[str, Domain] = {}

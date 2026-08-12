@@ -698,7 +698,7 @@ class Extractor:
                     # amount of prompting fixed it, and a stronger model
                     # failed identically. A rich utterance can easily
                     # need 2-3k tokens for the vertex properties alone.
-                    max_tokens=8192,
+                    max_tokens=16384,
                     system=self._system_prompt,
                     tools=[self._tool],
                     tool_choice={"type": "tool", "name": "emit_graph_delta"},

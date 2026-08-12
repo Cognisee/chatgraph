@@ -53,6 +53,27 @@ DOMAIN = Domain(
     root_id="Pilot:subject",
     root_properties=(("name", "the pilot"),),
     subject_noun="pilot",
+    # Proper nouns and aviation jargon that general-purpose speech
+    # recognition mangles. Observed failures: "Las Trancas" -> "lost
+    # truncus", "Citabria" -> "Sudavia" (which became an
+    # `Aircraft:sudavia` vertex in the graph).
+    stt_keyterms=(
+        "Las Trancas",
+        "Citabria",
+        "taildragger",
+        "tailwheel",
+        "backcountry",
+        "windsock",
+        "rotor",
+        "downwind",
+        "go-around",
+        "short field",
+        "soft field",
+        "density altitude",
+        "power curve",
+        "three-point landing",
+        "Half Moon Bay",
+    ),
 )
 
 

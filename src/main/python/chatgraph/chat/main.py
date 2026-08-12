@@ -863,7 +863,7 @@ async def run() -> int:
         # Order matters: bring up Deepgram first so a stalled WebSocket
         # handshake fails fast (it has a 15s timeout) before we touch the
         # audio hardware. Audio streams come up after STT is ready.
-        async with DeepgramFluxSTT() as stt, \
+        async with DeepgramFluxSTT(keyterms=domain.stt_keyterms) as stt, \
                 AudioInput() as audio_in, \
                 AudioOutput() as audio_out, \
                 GremlinWriter() as graph_writer:

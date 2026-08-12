@@ -73,10 +73,23 @@ class DeepgramFluxSTT:
     ENCODING = "linear16"
     SAMPLE_RATE = 16_000
 
-    def __init__(self, api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        keyterms: tuple[str, ...] = (),
+    ) -> None:
+        """``keyterms`` are domain vocabulary to bias recognition toward.
+
+        Proper nouns and jargon are where a general-purpose model fails
+        worst, and the failures land in the graph as facts: a session
+        recorded "Las Trancas" as "lost truncus" and "Citabria" as
+        "Sudavia", the latter becoming an ``Aircraft:sudavia`` vertex.
+        Domains supply their own terms via ``Domain.stt_keyterms``.
+        """
         self._api_key = api_key or os.environ.get("DEEPGRAM_API_KEY")
         if not self._api_key:
             raise RuntimeError("DEEPGRAM_API_KEY is not set")
+        self._keyterms = tuple(keyterms)
         self._client = DeepgramClient(api_key=self._api_key)
         self._socket = None
         self._cm = None
@@ -103,11 +116,31 @@ class DeepgramFluxSTT:
         # registered via sock.on()); calling it wedges the worker forever.
         # We use the pull-based API (sock.recv()) on our own recv thread.
         def _do_connect():
-            cm = self._client.listen.v2.connect(
-                model=self.MODEL,
-                encoding=self.ENCODING,
-                sample_rate=self.SAMPLE_RATE,
-            )
+            kwargs = {
+                "model": self.MODEL,
+                "encoding": self.ENCODING,
+                "sample_rate": self.SAMPLE_RATE,
+            }
+            # Only send keyterm when we have terms: an empty list is a
+            # needless query parameter, and older Flux deployments may
+            # reject it.
+            if self._keyterms:
+                kwargs["keyterm"] = list(self._keyterms)
+            try:
+                cm = self._client.listen.v2.connect(**kwargs)
+            except TypeError:
+                # SDK build without keyterm support: degrade to plain
+                # recognition rather than failing the session. Mis-heard
+                # proper nouns are bad; no session at all is worse.
+                if "keyterm" in kwargs:
+                    log.warning(
+                        "Deepgram SDK rejected 'keyterm'; connecting "
+                        "without domain vocabulary biasing."
+                    )
+                    kwargs.pop("keyterm")
+                    cm = self._client.listen.v2.connect(**kwargs)
+                else:
+                    raise
             sock = cm.__enter__()
             return cm, sock
 
