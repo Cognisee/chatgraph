@@ -45,6 +45,14 @@ DOMAIN = Domain(
         "minimums and doctrine, abort rules and commitment points, "
         "technique, tradeoffs, and lessons from experience."
     ),
+    # The graph root. Everything personal -- doctrine, minimums,
+    # procedures, skills -- hangs off this vertex, so the record is
+    # attributable to an identified individual rather than anonymous.
+    # `Person` (the medical default) is not in this domain's schema.
+    root_label="Pilot",
+    root_id="Pilot:subject",
+    root_properties=(("name", "the pilot"),),
+    subject_noun="pilot",
 )
 
 

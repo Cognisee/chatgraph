@@ -292,12 +292,24 @@ class RollingContext:
     )
 
     def __post_init__(self) -> None:
-        # If constructed with a person_id, treat the Person root as a
-        # known live-graph vertex so the first `reports` edge resolves.
-        # (The runtime sets person_id via _ensure_person, which seeds the
-        # cache itself; this covers callers that pass it to __init__.)
+        # If constructed with a person_id, treat the root vertex as a
+        # known live-graph vertex so the first root-anchored edge
+        # resolves. (The runtime sets person_id via _ensure_person, which
+        # seeds the cache itself; this covers callers that pass it to
+        # __init__.)
+        #
+        # The label is derived from the id rather than hardcoded to
+        # "Person": ids follow the "Label:slug" convention, and the root
+        # label is domain-specific (Person for medical, Pilot for
+        # aviation). Hardcoding it registered the aviation root under a
+        # label absent from that schema, so edges leaving the root failed
+        # validation as dangling.
         if self.person_id and self.person_id not in self.vertex_labels:
-            self.vertex_labels[self.person_id] = "Person"
+            root_label = (
+                self.person_id.split(":", 1)[0]
+                if ":" in self.person_id else self.person_id
+            )
+            self.vertex_labels[self.person_id] = root_label
 
     def add(self, speaker: str, text: str) -> None:
         self.window.append({"speaker": speaker, "text": text})
@@ -707,8 +719,8 @@ class Extractor:
         buckets = context.buckets_summary()
         buckets_block = f"\n\n{buckets}" if buckets else ""
         return (
-            f"person_id (the patient vertex; use as `out` of every new "
-            f"`reports` edge): {person}\n\n"
+            f"root vertex id (the interview subject; use as `out` of "
+            f"edges that hang off the subject): {person}\n\n"
             f"Recent turns (oldest first):\n{history}\n\n"
             f"Known Headache patterns:\n{known}"
             f"{buckets_block}\n\n"

@@ -50,6 +50,21 @@ class Domain:
             informed by the existing graph instead.
         description: human-readable summary, shown on ``-h`` and when
             an unknown domain is requested.
+        root_label: vertex label of the graph root -- the vertex every
+            session hangs its content off (``Person`` for medical,
+            ``Pilot`` for aviation). Must exist in the domain's schema:
+            the runtime creates this vertex at startup if the graph
+            doesn't already contain one, and a label outside the schema
+            would fail validation on the first delta.
+        root_id: id given to the root vertex when the runtime creates
+            it.
+        root_properties: properties set on the root vertex at creation.
+            Keys and literal types must match the schema's declaration
+            for ``root_label``.
+        subject_noun: what to call the interview subject in
+            domain-agnostic prose ("patient", "pilot"). Used in
+            runtime-generated prompts (e.g. the resume opening) so they
+            don't read as medical in a non-medical domain.
     """
 
     name: str
@@ -58,6 +73,10 @@ class Domain:
     extractor_prompt_intro: str
     opening_line: str
     description: str
+    root_label: str = "Person"
+    root_id: str = "Person:patient"
+    root_properties: tuple[tuple[str, str], ...] = (("name", "patient"),)
+    subject_noun: str = "patient"
 
 
 REGISTRY: dict[str, Domain] = {}

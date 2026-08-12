@@ -96,12 +96,18 @@ class Coordinator:
         audio_out: AudioOutput,
         extractor: Extractor | None = None,
         graph_writer: GremlinWriter | None = None,
+        domain=None,
     ) -> None:
         self._agent = agent
         self._tts = tts
         self._transcript = transcript
         self._audio_out = audio_out
         self._conversation = Conversation()
+        # The active Domain. Needed for domain-specific facts that the
+        # otherwise domain-agnostic coordinator has to know -- chiefly
+        # the graph's root vertex label and what to call the interview
+        # subject in generated prompts.
+        self._domain = domain
 
         # Phase 2: incremental graph extraction. extractor + graph_writer
         # are independent; either may be None. RollingContext threads the
@@ -344,6 +350,23 @@ class Coordinator:
         if graph is None or len(graph.vertices) == 0:
             return False
 
+        # A graph containing nothing but the root vertex is not a
+        # session to resume -- it's an empty one that merely got its root
+        # seeded (by a previous run that recorded nothing, or by this
+        # run). Treat it as fresh so the domain's opening line is used
+        # rather than an LLM-generated "welcome back".
+        root_label = self._domain.root_label if self._domain else "Person"
+        non_root = [
+            v for v in graph.vertices.values()
+            if v.label.value != root_label
+        ]
+        if not non_root and len(graph.edges) == 0:
+            log.info(
+                "resume: graph holds only the %s root; treating as fresh",
+                root_label,
+            )
+            return False
+
         headaches = [
             v for v in graph.vertices.values() if v.label.value == "Headache"
         ]
@@ -425,29 +448,32 @@ class Coordinator:
 
         Returns a hardcoded fallback if the LLM call fails for any reason.
         """
+        # Domain-neutral wording: this method is shared by every domain,
+        # so it must not assume a clinical interview. The subject noun
+        # ("patient", "pilot") comes from the Domain.
+        subject = (
+            self._domain.subject_noun if self._domain else "subject"
+        )
         fallback = (
-            "Welcome back. What's been happening with your headaches "
+            f"Welcome back. What else should we cover with the {subject} "
             "since we last spoke?"
         )
         if graph is None or len(graph.vertices) == 0:
             return fallback
         summary = self._summarize_whole_graph(graph)
         opening_system_prompt = (
-            "You are about to resume a clinical interview about a "
-            "patient's headaches. A property graph of what we already "
-            "know is shown below. Your task: produce ONE short, focused "
-            "follow-up question that would extend this graph in a "
-            "useful direction -- prefer dimensions of the headache that "
-            "are NOT yet represented (e.g. quality if there's no "
-            "Quality vertex on the current Headache, location if no "
-            "BodyLocation, etc.). Reply with the question only -- no "
-            "preamble, no 'welcome back', no apologies. One or two "
-            "sentences."
+            f"You are about to resume an interview with a {subject}. A "
+            "property graph of what we already know is shown below. Your "
+            "task: produce ONE short, focused follow-up question that "
+            "would extend this graph in a useful direction -- prefer "
+            "dimensions that are NOT yet represented in the graph. Reply "
+            "with the question only -- no preamble, no 'welcome back', "
+            "no apologies. One or two sentences."
         )
         user_prompt = (
             f"Graph so far:\n{summary}\n\n"
             "Produce one short follow-up question that would extend "
-            "what we know about this patient's headaches."
+            f"what we know from this {subject}."
         )
         try:
             question = await self._agent.complete(
@@ -675,13 +701,22 @@ def _split_sentences_final(text: str) -> list[str]:
     return sentences
 
 
-async def _ensure_person(graph_writer: GremlinWriter, coord: "Coordinator") -> None:
-    """Make sure a Person vertex exists and record its id in
+async def _ensure_person(
+    graph_writer: GremlinWriter, coord: "Coordinator", domain
+) -> None:
+    """Make sure the domain's root vertex exists and record its id in
     RollingContext.
 
-    If the graph already has a Person, reuse the first one found.
-    Otherwise create a new Person:patient vertex and write it via the
-    serial submit queue.
+    If the graph already has a vertex with the domain's ``root_label``,
+    reuse the first one found. Otherwise create one from the domain's
+    ``root_id`` / ``root_properties`` and write it via the serial submit
+    queue.
+
+    The root label is domain-supplied rather than hardcoded to
+    ``Person``: each schema declares its own root (``Person`` for
+    medical, ``Pilot`` for aviation), and writing a ``Person`` into a
+    schema that has no such vertex type would fail validation on the
+    first delta.
     """
     import hydra.core as core
     import hydra.pg.model as pg
@@ -695,21 +730,25 @@ async def _ensure_person(graph_writer: GremlinWriter, coord: "Coordinator") -> N
         # chatgraph.chat.validation for why this is needed.
         coord._rolling.register_vertices(graph.vertices.values())  # noqa: SLF001
         existing_persons = [
-            v for v in graph.vertices.values() if v.label.value == "Person"
+            v for v in graph.vertices.values()
+            if v.label.value == domain.root_label
         ]
         if existing_persons:
             pid = existing_persons[0].id.value
             coord._rolling.person_id = pid  # noqa: SLF001
-            log.info("Person vertex discovered: %s", pid)
+            log.info("%s vertex discovered: %s", domain.root_label, pid)
             return
 
-    # No existing Person; create one.
-    person_id = "Person:patient"
+    # No existing root vertex; create one from the domain's spec.
+    person_id = domain.root_id
     person_lit = core.LiteralString(person_id)
     person = pg.Vertex(
-        label=pg.VertexLabel("Person"),
+        label=pg.VertexLabel(domain.root_label),
         id=person_lit,
-        properties=FrozenDict({pg.PropertyKey("name"): core.LiteralString("patient")}),
+        properties=FrozenDict({
+            pg.PropertyKey(k): core.LiteralString(v)
+            for k, v in domain.root_properties
+        }),
     )
     delta = pg.Graph(
         vertices=FrozenDict({person_lit: person}),
@@ -717,10 +756,10 @@ async def _ensure_person(graph_writer: GremlinWriter, coord: "Coordinator") -> N
     )
     graph_writer.submit(delta)
     coord._rolling.person_id = person_id  # noqa: SLF001
-    # The new Person root is now in the live graph; register it so the
-    # first turn's `reports` edge resolves its out-vertex.
+    # The new root is now in the live graph; register it so the first
+    # turn's root-anchored edge resolves its out-vertex.
     coord._rolling.register_vertices([person])  # noqa: SLF001
-    log.info("Person vertex created: %s", person_id)
+    log.info("%s vertex created: %s", domain.root_label, person_id)
 
 
 async def run() -> int:
@@ -832,6 +871,7 @@ async def run() -> int:
                 agent, tts, transcript, audio_out,
                 extractor=extractor,
                 graph_writer=graph_writer,
+                domain=domain,
             )
             vad = VAD()
             t0 = _now()
@@ -841,22 +881,35 @@ async def run() -> int:
                 await graph_writer.drop_all()
                 print("chatgraph: cleared prior graph (--fresh)")
 
-            # Ensure a Person vertex exists rooting the graph. On a fresh
-            # graph we create one; on resume we discover an existing one.
-            # The id is recorded in RollingContext so the extractor uses
-            # it as the source of every new `reports` edge.
-            if graph_writer.connected:
-                await _ensure_person(graph_writer, coord)
-
-            # If a prior session left data in the graph, resume from it.
-            existing = await graph_writer.load_graph() if graph_writer.connected else None
+            # Decide fresh-vs-resume BEFORE seeding the root vertex.
+            #
+            # Order matters here and used to be wrong. _ensure_person
+            # creates the root vertex when the graph has none, so calling
+            # it first guaranteed a non-empty graph -- and the resume
+            # check ("are there any vertices?") then always said yes,
+            # even immediately after --fresh dropped everything. Every
+            # session resumed from its own root vertex.
+            #
+            # Reading the graph first makes the question honest: is there
+            # anything here that a *previous session* left behind?
+            existing = (
+                await graph_writer.load_graph()
+                if graph_writer.connected else None
+            )
             resuming = coord.seed_from_graph(existing) if existing else False
-            if resuming:
+            if resuming and existing is not None:
                 print(
                     f"chatgraph: resuming session "
                     f"({len(existing.vertices)} vertices, "
                     f"{len(existing.edges)} edges already on file)"
                 )
+
+            # Ensure the domain's root vertex exists. On a fresh graph we
+            # create one; on resume we discover the existing one. The id
+            # is recorded in RollingContext so the extractor anchors new
+            # root-attached edges to it.
+            if graph_writer.connected:
+                await _ensure_person(graph_writer, coord, domain)
 
             # Choose the opening line: a fresh-session greeting, or a
             # resume-aware question generated by the agent based on the
