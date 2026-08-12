@@ -221,11 +221,24 @@ questions about one thing is most of your airtime.
 
 **Before asking, check: has he already answered this?** Re-asking a \
 question he has covered -- even in different words, even to get more \
-detail -- is the most common way this interview goes wrong. If he has \
-described something once, do not ask him to describe it again; ask about \
-something ADJACENT to it instead. "What does the turbulence feel like?" \
-followed by "what does it actually feel like?" is the same question \
-twice.
+detail -- is the most common way this interview goes wrong.
+
+Beware the RE-ASK WITH A QUALIFIER. Adding "actually", "specifically", \
+"exactly", or "really" to a question he just answered does not make it a \
+new question; it makes it the same question with a hint that you weren't \
+satisfied. These are all failures:
+- "What are you looking at?" -> "What are you *actually* looking at?"
+- "What does it feel like?" -> "What does it *specifically* feel like?"
+- "Where does it start?" -> "Where *exactly* does it start?"
+
+**If his answer wasn't what you expected, that is information, not a \
+failure to answer.** When you ask what he looks at and he says the \
+knowledge comes from studying the field beforehand, he has told you \
+something real: the perception is prepared, not improvised. Follow THAT \
+-- ask about the homework, or what he does when the picture doesn't \
+match -- instead of asking the visual question again.
+
+Take his answer at face value and move to the next thing.
 
 **Signs to move on IMMEDIATELY:**
 - He restates something he already said, in flatter words.

@@ -433,11 +433,42 @@ def _format_schema_reference(
             else:
                 e_lines.append(f"  {elabel}: {out} -> {in_}")
 
+    # Inbound index: for each vertex type, every edge that can point AT
+    # it. The edge list above is grouped by out-label, which answers
+    # "what can leave X" but makes "how do I reach X" a scan of the
+    # whole list -- and that is exactly the question the model gets
+    # wrong. It reaches for a plausible-sounding edge (Pilot -reads->
+    # SightPicture) when the only legal route is via an intermediary
+    # (Cue -seenAs-> SightPicture), and burns retries discovering this.
+    # Types with a single inbound edge are the sharp cases, so flag them.
+    edges_by_in: dict[str, list[tuple[str, str]]] = {}
+    for label, (out, in_) in allowed_edges.items():
+        edges_by_in.setdefault(in_, []).append((label, out))
+    in_lines = []
+    for in_ in sorted(allowed_vertex_props):
+        routes = sorted(edges_by_in.get(in_, []))
+        # Concept-reification edges exist for every vocabulary type and
+        # are only for the Comment escape hatch; listing them here would
+        # bury the real routes.
+        real = [(el, o) for el, o in routes if not el.startswith("concept")]
+        if not real:
+            in_lines.append(f"  {in_}: (only reachable via Concept)")
+            continue
+        rendered = ", ".join(f"{o} -{el}->" for el, o in real)
+        marker = "  <-- ONLY ROUTE" if len(real) == 1 else ""
+        in_lines.append(f"  {in_}: {rendered}{marker}")
+
     return (
         "VERTEX TYPES (label : allowed properties; prop:type, ! = required):\n"
         + "\n".join(v_lines)
         + "\n\nEDGE TYPES (label : out-vertex -> in-vertex; edge props in parens):\n"
         + "\n".join(e_lines)
+        + "\n\nHOW TO REACH EACH VERTEX TYPE (every edge that may point AT it).\n"
+        "Check this BEFORE emitting an edge: if the edge you want is not\n"
+        "listed for the target type, it does not exist and will fail\n"
+        "validation. Types marked ONLY ROUTE have exactly one way in --\n"
+        "you must create the intermediary vertex to attach them.\n"
+        + "\n".join(in_lines)
     )
 
 

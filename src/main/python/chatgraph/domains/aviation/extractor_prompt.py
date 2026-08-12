@@ -82,17 +82,36 @@ Purpose -- NOT four disconnected vertices.
 
 *He describes something he feels, sees, or notices:*
 ```
-Pilot:subject -reads-> Cue
+Pilot:subject -reads-> Cue             (ALWAYS start here)
 Cue -cueObservedDuring-> Step          (when in the operation)
 Cue -cueIndicates-> ConditionFactor    (what it tells him)
 Cue -cueMeasures-> Hazard              (if it maps a danger)
 Cue -comparedAgainst-> Baseline        (if it's a deviation from normal)
-Cue -feltAs-> Sensation                (the raw sensation)
+Cue -seenAs-> SightPicture             (what he sees)
+Cue -feltAs-> Sensation                (what he feels)
+Cue -heardAs-> SoundCue                (what he hears)
 Cue -sensedThrough-> Aircraft          (if felt through the airplane)
 ```
-A `Cue` with no edges is the single most common failure. "The airplane \
-feels mushy" must connect -- at minimum `Pilot -reads-> Cue` and \
-`Cue -feltAs-> Sensation`.
+
+**`Cue` IS THE ONLY GATEWAY TO PERCEPTION.** `SightPicture`, \
+`Sensation`, and `SoundCue` have exactly one way in: from a `Cue`, via \
+`seenAs` / `feltAs` / `heardAs`. Nothing else may point at them. In \
+particular these do NOT exist and will fail validation:
+- `Pilot -reads-> SightPicture` -- `reads` goes to a `Cue`, never to a \
+SightPicture.
+- `Step -seenAs-> SightPicture` -- `seenAs` starts at a `Cue`, never at \
+a Step.
+- `Step -cueObservedDuring-> ...` -- that edge starts at a `Cue` too.
+
+So "on downwind I'm looking at how much runway is usable" is **two \
+vertices**: a `Cue` (what he attends to, wired to the Pilot and the \
+Step) and a `SightPicture` (what he actually sees), joined by `seenAs`. \
+Create the `Cue` first and hang the perceptual vertex off it. If you \
+find yourself wanting an edge into a SightPicture/Sensation/SoundCue \
+from anything other than a Cue, you are missing the Cue.
+
+A `Cue` with no edges is also a failure. "The airplane feels mushy" \
+needs at minimum `Pilot -reads-> Cue` and `Cue -feltAs-> Sensation`.
 
 *He describes a rule, limit, or abort:*
 ```
@@ -107,6 +126,23 @@ Pilot:subject -observes-> PersonalMinimum -minimumAtSite-> Site:17cl
 `PersonalMinimum` -- via `techniqueJustifiedBy`, `decisionRationale`, \
 `minimumRationale`. A `Hazard` cannot point at a `Rationale`; check the \
 endpoints in the reference before emitting.
+
+TWO MORE TRAPS
+
+**Don't reference a vertex you haven't created.** Only `Pilot:subject`, \
+`Site:17cl`, and the ids listed in the user message exist already. \
+Everything else -- including the aircraft -- must be emitted as a vertex \
+in the same delta before an edge can point at it. Emitting \
+`Technique -techniqueForAircraft-> Aircraft:subject` without also \
+emitting that `Aircraft` vertex fails.
+
+**Don't connect a vertex to itself, or two vertices of the same type, \
+unless the schema says so.** `refines` goes \
+`Technique -> PublishedProcedure`, so a `PublishedProcedure` cannot \
+`refine` another one -- and nothing may point at itself. If the pilot's \
+practice matches or differs from published guidance, that is TWO \
+vertices of different types (a `Technique` and a `PublishedProcedure`) \
+joined by `refines`, `contradicts`, or `confirms`.
 
 If the utterance elaborates on something already in the graph, prefer \
 **one or two edges onto existing vertices** over a batch of new ones. \
