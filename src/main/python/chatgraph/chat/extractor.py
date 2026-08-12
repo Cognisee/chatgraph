@@ -718,14 +718,48 @@ class Extractor:
         person = context.person_id or "(not yet set)"
         buckets = context.buckets_summary()
         buckets_block = f"\n\n{buckets}" if buckets else ""
+
+        # Vertices already in the live graph, grouped by label. Without
+        # this the model cannot reuse existing ids, so it re-mints a new
+        # vertex for a concept it already recorded a turn ago -- which is
+        # how one idea ends up as three unconnected vertices
+        # (AbortRule:stop-before-midpoint, AbortRule:stop-by-midpoint,
+        # Doctrine:stop-by-midpoint-short-strips). Reuse is what makes
+        # the graph accumulate rather than fragment.
+        known_block = ""
+        if context.vertex_labels:
+            by_label: dict[str, list[str]] = {}
+            for vid, label in context.vertex_labels.items():
+                by_label.setdefault(label, []).append(vid)
+            lines = [
+                f"  {label}: {', '.join(sorted(ids))}"
+                for label, ids in sorted(by_label.items())
+            ]
+            known_block = (
+                "\nVertices ALREADY in the graph -- reuse these ids when "
+                "the utterance refers to the same thing; do NOT mint a "
+                "near-duplicate:\n" + "\n".join(lines) + "\n"
+            )
+
+        # The Headache/bucket lines are medical-domain scaffolding. Only
+        # include them when they actually carry something, so an aviation
+        # session isn't told "Known Headache patterns: (none recorded)".
+        medical_block = ""
+        if context.known_headaches or context.current_headache_id:
+            medical_block = (
+                f"\nKnown Headache patterns:\n{known}"
+                f"{buckets_block}\n"
+                f"\nmost_recent_headache_id (default when ambiguous): "
+                f"{current}\n"
+            )
+
         return (
             f"root vertex id (the interview subject; use as `out` of "
-            f"edges that hang off the subject): {person}\n\n"
-            f"Recent turns (oldest first):\n{history}\n\n"
-            f"Known Headache patterns:\n{known}"
-            f"{buckets_block}\n\n"
-            f"most_recent_headache_id (default when ambiguous): {current}\n\n"
-            f"Latest patient utterance:\n  {utterance}"
+            f"edges that hang off the subject): {person}\n"
+            f"{known_block}"
+            f"\nRecent turns (oldest first):\n{history}\n"
+            f"{medical_block}"
+            f"\nLatest utterance from the interview subject:\n  {utterance}"
         )
 
 

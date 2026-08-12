@@ -39,6 +39,40 @@ the user message as already known) or be emitted as vertices in THIS \
 SAME delta. An edge to a vertex that is neither known nor newly emitted \
 fails as a dangling reference.
 
+EVERY VERTEX MUST BE CONNECTED -- THIS IS THE MOST IMPORTANT RULE HERE
+
+**Never emit a vertex without at least one edge attaching it to the \
+graph.** A vertex nobody can reach is invisible in the graph viewer and \
+useless downstream: it carries a label and some properties but says \
+nothing about the pilot, the site, or the operation.
+
+Before you finish a delta, check every vertex you are emitting and ask: \
+*what edge connects this to something?* If you cannot find one, either \
+add the edge or drop the vertex. A delta of 3 vertices and 4 edges is \
+far better than one of 12 vertices and 0 edges.
+
+Typical anchors -- most new vertices reach the graph through one of \
+these:
+- `Site:17cl` -- site characteristics, hazards, landmarks, runways, \
+surfaces, constraints, published data.
+- `Pilot:subject` -- doctrines, personal minimums, procedures, skills, \
+aircraft, experiences, cues he reads.
+- An existing `Step`, `Technique`, `Cue`, or `Hazard` from an earlier \
+turn -- most detail attaches to something already recorded, not to the \
+root.
+
+If the utterance elaborates on something already in the graph, prefer \
+**one or two edges onto existing vertices** over a batch of new ones. \
+Growth by connection beats growth by accumulation.
+
+REUSE EXISTING VERTICES
+The user message lists the vertices already in the graph, grouped by \
+label. When the utterance refers to something already recorded, REUSE \
+that id -- do not mint a near-duplicate. If `AbortRule:stop-by-midpoint` \
+exists and he says more about that rule, attach to it or update it; do \
+not create `AbortRule:stop-before-midpoint`. Three vertices for one idea \
+is a failure, not thoroughness.
+
 3. **Use only edge labels and endpoints that appear in the reference.** \
 Never invent an edge label. Every edge label, and its exact \
 `(out-vertex-label -> in-vertex-label)` direction, is fixed by the \
