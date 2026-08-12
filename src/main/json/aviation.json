@@ -1,0 +1,1251 @@
+{
+  "vertices": [
+    {
+      "key": "AbortRule",
+      "value": {
+        "label": "AbortRule",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "testType", "value": "string", "required": false},
+          {"key": "action", "value": "string", "required": false},
+          {"key": "evaluatedWhen", "value": "string", "required": false},
+          {"key": "timesTriggered", "value": {"integer": "int32"}, "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Aircraft",
+      "value": {
+        "label": "Aircraft",
+        "id": "string",
+        "properties": [
+          {"key": "type", "value": "string", "required": true},
+          {"key": "manufacturer", "value": "string", "required": false},
+          {"key": "gearConfiguration", "value": "string", "required": false},
+          {"key": "engineHp", "value": {"integer": "int32"}, "required": false},
+          {"key": "tireType", "value": "string", "required": false},
+          {"key": "notes", "value": "string", "required": false}]}},
+    {
+      "key": "Baseline",
+      "value": {
+        "label": "Baseline",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "phase", "value": "string", "required": false},
+          {"key": "establishedBy", "value": "string", "required": false},
+          {"key": "deviationSignifies", "value": "string", "required": false},
+          {"key": "siteSpecific", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Comment",
+      "value": {
+        "label": "Comment",
+        "id": "string",
+        "properties": [{"key": "description", "value": "string", "required": true}, {"key": "kind", "value": "string", "required": false}]}},
+    {
+      "key": "CommitmentPoint",
+      "value": {
+        "label": "CommitmentPoint",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "phase", "value": "string", "required": false},
+          {"key": "afterWhichNoGoAround", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Concept",
+      "value": {
+        "label": "Concept",
+        "id": "string",
+        "properties": [{"key": "label", "value": "string", "required": true}, {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "ConditionFactor",
+      "value": {
+        "label": "ConditionFactor",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "factor", "value": "string", "required": false},
+          {"key": "acceptability", "value": "string", "required": false},
+          {"key": "onlyInCombination", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Configuration",
+      "value": {
+        "label": "Configuration",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "phase", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Consequence",
+      "value": {
+        "label": "Consequence",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "likelihood", "value": "string", "required": false},
+          {"key": "severity", "value": "string", "required": false},
+          {"key": "acceptable", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Constraint",
+      "value": {
+        "label": "Constraint",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "kind", "value": "string", "required": false},
+          {"key": "source", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Contingency",
+      "value": {
+        "label": "Contingency",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "triggeredBy", "value": "string", "required": false},
+          {"key": "availability", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Cue",
+      "value": {
+        "label": "Cue",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "sensoryChannel", "value": "string", "required": false},
+          {"key": "mediatedBy", "value": "string", "required": false},
+          {"key": "role", "value": "string", "required": false},
+          {"key": "whenObserved", "value": "string", "required": false},
+          {"key": "indicates", "value": "string", "required": false},
+          {"key": "requiresExperience", "value": "boolean", "required": false},
+          {"key": "isDocumented", "value": "boolean", "required": false},
+          {"key": "siteSpecific", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Decision",
+      "value": {
+        "label": "Decision",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "phase", "value": "string", "required": false},
+          {"key": "outcome", "value": "string", "required": false},
+          {"key": "decidedBy", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "DensityAltitudeCondition",
+      "value": {
+        "label": "DensityAltitudeCondition",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "acceptability", "value": "string", "required": false},
+          {"key": "threshold", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Doctrine",
+      "value": {
+        "label": "Doctrine",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "scope", "value": "string", "required": false},
+          {"key": "origin", "value": "string", "required": false},
+          {"key": "heldSince", "value": "string", "required": false},
+          {"key": "revised", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "EnergyState",
+      "value": {
+        "label": "EnergyState",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "airspeedRelation", "value": "string", "required": false},
+          {"key": "phase", "value": "string", "required": false},
+          {"key": "margin", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Experience",
+      "value": {
+        "label": "Experience",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "when", "value": "string", "required": false},
+          {"key": "outcome", "value": "string", "required": false},
+          {"key": "divergedFromRecommended", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Gate",
+      "value": {
+        "label": "Gate",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "phase", "value": "string", "required": false},
+          {"key": "outcomeIfFailed", "value": "string", "required": false},
+          {"key": "collapsesDecision", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Hazard",
+      "value": {
+        "label": "Hazard",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "mechanism", "value": "string", "required": false},
+          {"key": "phase", "value": "string", "required": false},
+          {"key": "severity", "value": "string", "required": false},
+          {"key": "atCommitmentPoint", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "InformationSource",
+      "value": {
+        "label": "InformationSource",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "reliability", "value": "string", "required": false},
+          {"key": "availability", "value": "string", "required": false},
+          {"key": "isProxy", "value": "boolean", "required": false},
+          {"key": "proxyLimitation", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Landmark",
+      "value": {
+        "label": "Landmark",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "visualDescription", "value": "string", "required": false},
+          {"key": "useCase", "value": "string", "required": false},
+          {"key": "substitutesForMeasurement", "value": "boolean", "required": false},
+          {"key": "occludedWhenActedOn", "value": "boolean", "required": false},
+          {"key": "bridgingMethod", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "LessonLearned",
+      "value": {
+        "label": "LessonLearned",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "changedBehavior", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "LightCondition",
+      "value": {
+        "label": "LightCondition",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "acceptability", "value": "string", "required": false},
+          {"key": "threshold", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "LoadingCondition",
+      "value": {
+        "label": "LoadingCondition",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "acceptability", "value": "string", "required": false},
+          {"key": "threshold", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Obstruction",
+      "value": {
+        "label": "Obstruction",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "distanceFt", "value": {"integer": "int32"}, "required": false},
+          {"key": "bearing", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "PersonalMinimum",
+      "value": {
+        "label": "PersonalMinimum",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "factor", "value": "string", "required": false},
+          {"key": "isPublished", "value": "boolean", "required": false},
+          {"key": "strictness", "value": "string", "required": false},
+          {"key": "aboutOperator", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Pilot",
+      "value": {
+        "label": "Pilot",
+        "id": "string",
+        "properties": [
+          {"key": "name", "value": "string", "required": false},
+          {"key": "ratings", "value": "string", "required": false},
+          {"key": "experienceSummary", "value": "string", "required": false},
+          {"key": "totalHours", "value": {"integer": "int32"}, "required": false}]}},
+    {
+      "key": "Procedure",
+      "value": {
+        "label": "Procedure",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "phase", "value": "string", "required": false},
+          {"key": "isPersonal", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Projection",
+      "value": {
+        "label": "Projection",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "basedOn", "value": "string", "required": false},
+          {"key": "phase", "value": "string", "required": false},
+          {"key": "updatedContinuously", "value": "boolean", "required": false},
+          {"key": "degradedBy", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "PublishedData",
+      "value": {
+        "label": "PublishedData",
+        "id": "string",
+        "properties": [
+          {"key": "field", "value": "string", "required": true},
+          {"key": "value", "value": "string", "required": true},
+          {"key": "source", "value": "string", "required": false},
+          {"key": "asOf", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "PublishedProcedure",
+      "value": {
+        "label": "PublishedProcedure",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "source", "value": "string", "required": false},
+          {"key": "summary", "value": "string", "required": false},
+          {"key": "phase", "value": "string", "required": false}]}},
+    {
+      "key": "Purpose",
+      "value": {
+        "label": "Purpose",
+        "id": "string",
+        "properties": [{"key": "value", "value": "string", "required": true}, {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Rationale",
+      "value": {
+        "label": "Rationale",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "kind", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Runway",
+      "value": {
+        "label": "Runway",
+        "id": "string",
+        "properties": [
+          {"key": "identifier", "value": "string", "required": false},
+          {"key": "lengthFt", "value": {"integer": "int32"}, "required": false},
+          {"key": "widthFt", "value": {"integer": "int32"}, "required": false},
+          {"key": "surfaceType", "value": "string", "required": false},
+          {"key": "slope", "value": "string", "required": false},
+          {"key": "straightness", "value": "string", "required": false},
+          {"key": "preferredDirection", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Sensation",
+      "value": {
+        "label": "Sensation",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "intensity", "value": "string", "required": false},
+          {"key": "bodyReference", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "SightPicture",
+      "value": {
+        "label": "SightPicture",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "phase", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Site",
+      "value": {
+        "label": "Site",
+        "id": "string",
+        "properties": [
+          {"key": "identifier", "value": "string", "required": false},
+          {"key": "name", "value": "string", "required": true},
+          {"key": "siteType", "value": "string", "required": false},
+          {"key": "elevationFt", "value": {"integer": "int32"}, "required": false},
+          {"key": "coordinates", "value": "string", "required": false},
+          {"key": "access", "value": "string", "required": false}]}},
+    {
+      "key": "SiteCharacteristic",
+      "value": {
+        "label": "SiteCharacteristic",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "category", "value": "string", "required": false},
+          {"key": "severity", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Skill",
+      "value": {
+        "label": "Skill",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "proficiency", "value": "string", "required": false},
+          {"key": "currency", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "SoundCue",
+      "value": {
+        "label": "SoundCue",
+        "id": "string",
+        "properties": [{"key": "value", "value": "string", "required": true}, {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Step",
+      "value": {
+        "label": "Step",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "sequence", "value": {"integer": "int32"}, "required": false},
+          {"key": "phase", "value": "string", "required": false},
+          {"key": "optional", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Surface",
+      "value": {
+        "label": "Surface",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "condition", "value": "string", "required": false},
+          {"key": "variability", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "SurfaceCondition",
+      "value": {
+        "label": "SurfaceCondition",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "acceptability", "value": "string", "required": false},
+          {"key": "threshold", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Technique",
+      "value": {
+        "label": "Technique",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "phase", "value": "string", "required": false},
+          {"key": "asPracticed", "value": "string", "required": false},
+          {"key": "asRecommended", "value": "string", "required": false},
+          {"key": "landmarkAnchored", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "TerrainFeature",
+      "value": {
+        "label": "TerrainFeature",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "heightFt", "value": {"integer": "int32"}, "required": false},
+          {"key": "relativePosition", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "Tradeoff",
+      "value": {
+        "label": "Tradeoff",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "dimension", "value": "string", "required": false},
+          {"key": "resolution", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "TradeoffSide",
+      "value": {
+        "label": "TradeoffSide",
+        "id": "string",
+        "properties": [
+          {"key": "direction", "value": "string", "required": true},
+          {"key": "benefit", "value": "string", "required": false},
+          {"key": "risk", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "VisibilityCondition",
+      "value": {
+        "label": "VisibilityCondition",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "acceptability", "value": "string", "required": false},
+          {"key": "threshold", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "WindCondition",
+      "value": {
+        "label": "WindCondition",
+        "id": "string",
+        "properties": [
+          {"key": "value", "value": "string", "required": true},
+          {"key": "acceptability", "value": "string", "required": false},
+          {"key": "threshold", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "WorkingValue",
+      "value": {
+        "label": "WorkingValue",
+        "id": "string",
+        "properties": [
+          {"key": "field", "value": "string", "required": true},
+          {"key": "value", "value": "string", "required": true},
+          {"key": "establishedBy", "value": "string", "required": false},
+          {"key": "confidence", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}}],
+  "edges": [
+    {
+      "key": "abortRuleAt",
+      "value": {"label": "abortRuleAt", "id": "string", "out": "AbortRule", "in": "CommitmentPoint", "properties": []}},
+    {
+      "key": "abortRuleTests",
+      "value": {
+        "label": "abortRuleTests",
+        "id": "string",
+        "out": "AbortRule",
+        "in": "Projection",
+        "properties": [{"key": "comparedTo", "value": "string", "required": false}]}},
+    {"key": "about", "value": {"label": "about", "id": "string", "out": "Comment", "in": "Concept", "properties": []}},
+    {
+      "key": "aircraftConfiguration",
+      "value": {"label": "aircraftConfiguration", "id": "string", "out": "Aircraft", "in": "Configuration", "properties": []}},
+    {
+      "key": "aircraftRequiresSkill",
+      "value": {"label": "aircraftRequiresSkill", "id": "string", "out": "Aircraft", "in": "Skill", "properties": []}},
+    {
+      "key": "appliedAt",
+      "value": {
+        "label": "appliedAt",
+        "id": "string",
+        "out": "Doctrine",
+        "in": "Site",
+        "properties": [{"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "appliesGate",
+      "value": {"label": "appliesGate", "id": "string", "out": "Pilot", "in": "Gate", "properties": []}},
+    {
+      "key": "arisesFrom",
+      "value": {
+        "label": "arisesFrom",
+        "id": "string",
+        "out": "Hazard",
+        "in": "SiteCharacteristic",
+        "properties": [{"key": "contribution", "value": "string", "required": false}]}},
+    {
+      "key": "arisesFromCondition",
+      "value": {
+        "label": "arisesFromCondition",
+        "id": "string",
+        "out": "Hazard",
+        "in": "ConditionFactor",
+        "properties": [{"key": "contribution", "value": "string", "required": false}]}},
+    {
+      "key": "arisesFromTerrain",
+      "value": {"label": "arisesFromTerrain", "id": "string", "out": "Hazard", "in": "TerrainFeature", "properties": []}},
+    {
+      "key": "assessedVia",
+      "value": {
+        "label": "assessedVia",
+        "id": "string",
+        "out": "ConditionFactor",
+        "in": "InformationSource",
+        "properties": [{"key": "reliability", "value": "string", "required": false}]}},
+    {
+      "key": "baselineAtSite",
+      "value": {"label": "baselineAtSite", "id": "string", "out": "Baseline", "in": "Site", "properties": []}},
+    {
+      "key": "baselineBuiltBy",
+      "value": {"label": "baselineBuiltBy", "id": "string", "out": "Baseline", "in": "Experience", "properties": []}},
+    {
+      "key": "baselineFor",
+      "value": {"label": "baselineFor", "id": "string", "out": "Baseline", "in": "Cue", "properties": []}},
+    {
+      "key": "calibratedBy",
+      "value": {"label": "calibratedBy", "id": "string", "out": "PersonalMinimum", "in": "Experience", "properties": []}},
+    {
+      "key": "coincidesWith",
+      "value": {
+        "label": "coincidesWith",
+        "id": "string",
+        "out": "Hazard",
+        "in": "Step",
+        "properties": [{"key": "whyItMatters", "value": "string", "required": false}]}},
+    {
+      "key": "coincidesWithCommitment",
+      "value": {"label": "coincidesWithCommitment", "id": "string", "out": "Hazard", "in": "CommitmentPoint", "properties": []}},
+    {
+      "key": "commitmentAtLandmark",
+      "value": {"label": "commitmentAtLandmark", "id": "string", "out": "CommitmentPoint", "in": "Landmark", "properties": []}},
+    {
+      "key": "comparedAgainst",
+      "value": {
+        "label": "comparedAgainst",
+        "id": "string",
+        "out": "Cue",
+        "in": "Baseline",
+        "properties": [
+          {"key": "deviationDirection", "value": "string", "required": false},
+          {"key": "deviationSignificance", "value": "string", "required": false}]}},
+    {
+      "key": "compoundsWith",
+      "value": {
+        "label": "compoundsWith",
+        "id": "string",
+        "out": "PersonalMinimum",
+        "in": "SiteCharacteristic",
+        "properties": [{"key": "interaction", "value": "string", "required": false}]}},
+    {
+      "key": "conceptAbortRule",
+      "value": {"label": "conceptAbortRule", "id": "string", "out": "Concept", "in": "AbortRule", "properties": []}},
+    {
+      "key": "conceptAircraft",
+      "value": {"label": "conceptAircraft", "id": "string", "out": "Concept", "in": "Aircraft", "properties": []}},
+    {
+      "key": "conceptBaseline",
+      "value": {"label": "conceptBaseline", "id": "string", "out": "Concept", "in": "Baseline", "properties": []}},
+    {
+      "key": "conceptCommitmentPoint",
+      "value": {"label": "conceptCommitmentPoint", "id": "string", "out": "Concept", "in": "CommitmentPoint", "properties": []}},
+    {
+      "key": "conceptConditionFactor",
+      "value": {"label": "conceptConditionFactor", "id": "string", "out": "Concept", "in": "ConditionFactor", "properties": []}},
+    {
+      "key": "conceptConfiguration",
+      "value": {"label": "conceptConfiguration", "id": "string", "out": "Concept", "in": "Configuration", "properties": []}},
+    {
+      "key": "conceptConsequence",
+      "value": {"label": "conceptConsequence", "id": "string", "out": "Concept", "in": "Consequence", "properties": []}},
+    {
+      "key": "conceptConstraint",
+      "value": {"label": "conceptConstraint", "id": "string", "out": "Concept", "in": "Constraint", "properties": []}},
+    {
+      "key": "conceptContingency",
+      "value": {"label": "conceptContingency", "id": "string", "out": "Concept", "in": "Contingency", "properties": []}},
+    {"key": "conceptCue", "value": {"label": "conceptCue", "id": "string", "out": "Concept", "in": "Cue", "properties": []}},
+    {
+      "key": "conceptDecision",
+      "value": {"label": "conceptDecision", "id": "string", "out": "Concept", "in": "Decision", "properties": []}},
+    {
+      "key": "conceptDensityAltitudeCondition",
+      "value": {
+        "label": "conceptDensityAltitudeCondition",
+        "id": "string",
+        "out": "Concept",
+        "in": "DensityAltitudeCondition",
+        "properties": []}},
+    {
+      "key": "conceptDoctrine",
+      "value": {"label": "conceptDoctrine", "id": "string", "out": "Concept", "in": "Doctrine", "properties": []}},
+    {
+      "key": "conceptEnergyState",
+      "value": {"label": "conceptEnergyState", "id": "string", "out": "Concept", "in": "EnergyState", "properties": []}},
+    {
+      "key": "conceptExperience",
+      "value": {"label": "conceptExperience", "id": "string", "out": "Concept", "in": "Experience", "properties": []}},
+    {
+      "key": "conceptGate",
+      "value": {"label": "conceptGate", "id": "string", "out": "Concept", "in": "Gate", "properties": []}},
+    {
+      "key": "conceptHazard",
+      "value": {"label": "conceptHazard", "id": "string", "out": "Concept", "in": "Hazard", "properties": []}},
+    {
+      "key": "conceptInformationSource",
+      "value": {"label": "conceptInformationSource", "id": "string", "out": "Concept", "in": "InformationSource", "properties": []}},
+    {
+      "key": "conceptLandmark",
+      "value": {"label": "conceptLandmark", "id": "string", "out": "Concept", "in": "Landmark", "properties": []}},
+    {
+      "key": "conceptLessonLearned",
+      "value": {"label": "conceptLessonLearned", "id": "string", "out": "Concept", "in": "LessonLearned", "properties": []}},
+    {
+      "key": "conceptLightCondition",
+      "value": {"label": "conceptLightCondition", "id": "string", "out": "Concept", "in": "LightCondition", "properties": []}},
+    {
+      "key": "conceptLoadingCondition",
+      "value": {"label": "conceptLoadingCondition", "id": "string", "out": "Concept", "in": "LoadingCondition", "properties": []}},
+    {
+      "key": "conceptObstruction",
+      "value": {"label": "conceptObstruction", "id": "string", "out": "Concept", "in": "Obstruction", "properties": []}},
+    {
+      "key": "conceptPersonalMinimum",
+      "value": {"label": "conceptPersonalMinimum", "id": "string", "out": "Concept", "in": "PersonalMinimum", "properties": []}},
+    {
+      "key": "conceptProcedure",
+      "value": {"label": "conceptProcedure", "id": "string", "out": "Concept", "in": "Procedure", "properties": []}},
+    {
+      "key": "conceptProjection",
+      "value": {"label": "conceptProjection", "id": "string", "out": "Concept", "in": "Projection", "properties": []}},
+    {
+      "key": "conceptPublishedData",
+      "value": {"label": "conceptPublishedData", "id": "string", "out": "Concept", "in": "PublishedData", "properties": []}},
+    {
+      "key": "conceptPublishedProcedure",
+      "value": {"label": "conceptPublishedProcedure", "id": "string", "out": "Concept", "in": "PublishedProcedure", "properties": []}},
+    {
+      "key": "conceptPurpose",
+      "value": {"label": "conceptPurpose", "id": "string", "out": "Concept", "in": "Purpose", "properties": []}},
+    {
+      "key": "conceptRationale",
+      "value": {"label": "conceptRationale", "id": "string", "out": "Concept", "in": "Rationale", "properties": []}},
+    {
+      "key": "conceptRunway",
+      "value": {"label": "conceptRunway", "id": "string", "out": "Concept", "in": "Runway", "properties": []}},
+    {
+      "key": "conceptSensation",
+      "value": {"label": "conceptSensation", "id": "string", "out": "Concept", "in": "Sensation", "properties": []}},
+    {
+      "key": "conceptSightPicture",
+      "value": {"label": "conceptSightPicture", "id": "string", "out": "Concept", "in": "SightPicture", "properties": []}},
+    {
+      "key": "conceptSite",
+      "value": {"label": "conceptSite", "id": "string", "out": "Concept", "in": "Site", "properties": []}},
+    {
+      "key": "conceptSiteCharacteristic",
+      "value": {"label": "conceptSiteCharacteristic", "id": "string", "out": "Concept", "in": "SiteCharacteristic", "properties": []}},
+    {
+      "key": "conceptSkill",
+      "value": {"label": "conceptSkill", "id": "string", "out": "Concept", "in": "Skill", "properties": []}},
+    {
+      "key": "conceptSoundCue",
+      "value": {"label": "conceptSoundCue", "id": "string", "out": "Concept", "in": "SoundCue", "properties": []}},
+    {
+      "key": "conceptStep",
+      "value": {"label": "conceptStep", "id": "string", "out": "Concept", "in": "Step", "properties": []}},
+    {
+      "key": "conceptSurface",
+      "value": {"label": "conceptSurface", "id": "string", "out": "Concept", "in": "Surface", "properties": []}},
+    {
+      "key": "conceptSurfaceCondition",
+      "value": {"label": "conceptSurfaceCondition", "id": "string", "out": "Concept", "in": "SurfaceCondition", "properties": []}},
+    {
+      "key": "conceptTechnique",
+      "value": {"label": "conceptTechnique", "id": "string", "out": "Concept", "in": "Technique", "properties": []}},
+    {
+      "key": "conceptTerrainFeature",
+      "value": {"label": "conceptTerrainFeature", "id": "string", "out": "Concept", "in": "TerrainFeature", "properties": []}},
+    {
+      "key": "conceptTradeoff",
+      "value": {"label": "conceptTradeoff", "id": "string", "out": "Concept", "in": "Tradeoff", "properties": []}},
+    {
+      "key": "conceptTradeoffSide",
+      "value": {"label": "conceptTradeoffSide", "id": "string", "out": "Concept", "in": "TradeoffSide", "properties": []}},
+    {
+      "key": "conceptVisibilityCondition",
+      "value": {"label": "conceptVisibilityCondition", "id": "string", "out": "Concept", "in": "VisibilityCondition", "properties": []}},
+    {
+      "key": "conceptWindCondition",
+      "value": {"label": "conceptWindCondition", "id": "string", "out": "Concept", "in": "WindCondition", "properties": []}},
+    {
+      "key": "conceptWorkingValue",
+      "value": {"label": "conceptWorkingValue", "id": "string", "out": "Concept", "in": "WorkingValue", "properties": []}},
+    {
+      "key": "conditionAffects",
+      "value": {"label": "conditionAffects", "id": "string", "out": "ConditionFactor", "in": "Decision", "properties": []}},
+    {
+      "key": "conditionCompoundsWith",
+      "value": {
+        "label": "conditionCompoundsWith",
+        "id": "string",
+        "out": "ConditionFactor",
+        "in": "ConditionFactor",
+        "properties": [{"key": "interaction", "value": "string", "required": false}]}},
+    {
+      "key": "conditionCue",
+      "value": {"label": "conditionCue", "id": "string", "out": "ConditionFactor", "in": "Cue", "properties": []}},
+    {
+      "key": "confirms",
+      "value": {"label": "confirms", "id": "string", "out": "Technique", "in": "PublishedProcedure", "properties": []}},
+    {
+      "key": "contingencyAvailableUntil",
+      "value": {"label": "contingencyAvailableUntil", "id": "string", "out": "Contingency", "in": "CommitmentPoint", "properties": []}},
+    {
+      "key": "contingencyRequires",
+      "value": {
+        "label": "contingencyRequires",
+        "id": "string",
+        "out": "Contingency",
+        "in": "EnergyState",
+        "properties": [{"key": "marginSource", "value": "string", "required": false}]}},
+    {
+      "key": "contingencyTriggeredByCue",
+      "value": {"label": "contingencyTriggeredByCue", "id": "string", "out": "Contingency", "in": "Cue", "properties": []}},
+    {
+      "key": "contingencyUsesTechnique",
+      "value": {
+        "label": "contingencyUsesTechnique",
+        "id": "string",
+        "out": "Contingency",
+        "in": "Technique",
+        "properties": [{"key": "why", "value": "string", "required": false}]}},
+    {
+      "key": "contradicts",
+      "value": {
+        "label": "contradicts",
+        "id": "string",
+        "out": "Technique",
+        "in": "PublishedProcedure",
+        "properties": [
+          {"key": "reason", "value": "string", "required": false},
+          {"key": "acknowledgesTension", "value": "boolean", "required": false}]}},
+    {
+      "key": "corrects",
+      "value": {
+        "label": "corrects",
+        "id": "string",
+        "out": "WorkingValue",
+        "in": "PublishedData",
+        "properties": [
+          {"key": "method", "value": "string", "required": false},
+          {"key": "discrepancy", "value": "string", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "counteredBy",
+      "value": {
+        "label": "counteredBy",
+        "id": "string",
+        "out": "Hazard",
+        "in": "Technique",
+        "properties": [{"key": "howItHelps", "value": "string", "required": false}]}},
+    {
+      "key": "cueAtLandmark",
+      "value": {"label": "cueAtLandmark", "id": "string", "out": "Cue", "in": "Landmark", "properties": []}},
+    {
+      "key": "cueFrom",
+      "value": {"label": "cueFrom", "id": "string", "out": "Cue", "in": "InformationSource", "properties": []}},
+    {
+      "key": "cueIndicates",
+      "value": {"label": "cueIndicates", "id": "string", "out": "Cue", "in": "ConditionFactor", "properties": []}},
+    {
+      "key": "cueInforms",
+      "value": {"label": "cueInforms", "id": "string", "out": "Cue", "in": "Decision", "properties": []}},
+    {
+      "key": "cueMeasures",
+      "value": {
+        "label": "cueMeasures",
+        "id": "string",
+        "out": "Cue",
+        "in": "Hazard",
+        "properties": [{"key": "whatItReveals", "value": "string", "required": false}]}},
+    {
+      "key": "cueObservedDuring",
+      "value": {"label": "cueObservedDuring", "id": "string", "out": "Cue", "in": "Step", "properties": []}},
+    {
+      "key": "decisionAtPoint",
+      "value": {"label": "decisionAtPoint", "id": "string", "out": "Decision", "in": "CommitmentPoint", "properties": []}},
+    {
+      "key": "decisionConstrainedBy",
+      "value": {"label": "decisionConstrainedBy", "id": "string", "out": "Decision", "in": "Constraint", "properties": []}},
+    {
+      "key": "decisionContingency",
+      "value": {"label": "decisionContingency", "id": "string", "out": "Decision", "in": "Contingency", "properties": []}},
+    {
+      "key": "decisionOutcome",
+      "value": {"label": "decisionOutcome", "id": "string", "out": "Decision", "in": "Consequence", "properties": []}},
+    {
+      "key": "decisionRationale",
+      "value": {"label": "decisionRationale", "id": "string", "out": "Decision", "in": "Rationale", "properties": []}},
+    {
+      "key": "densityAltitudeCondition",
+      "value": {
+        "label": "densityAltitudeCondition",
+        "id": "string",
+        "out": "ConditionFactor",
+        "in": "DensityAltitudeCondition",
+        "properties": []}},
+    {
+      "key": "divergedFrom",
+      "value": {
+        "label": "divergedFrom",
+        "id": "string",
+        "out": "Experience",
+        "in": "Technique",
+        "properties": [
+          {"key": "whatDiffered", "value": "string", "required": false},
+          {"key": "wouldRepeat", "value": "boolean", "required": false}]}},
+    {
+      "key": "elaborates",
+      "value": {
+        "label": "elaborates",
+        "id": "string",
+        "out": "Hazard",
+        "in": "PublishedData",
+        "properties": [{"key": "addedUnderstanding", "value": "string", "required": false}]}},
+    {
+      "key": "elaboratesProcedure",
+      "value": {"label": "elaboratesProcedure", "id": "string", "out": "Hazard", "in": "PublishedProcedure", "properties": []}},
+    {
+      "key": "establishedBy",
+      "value": {"label": "establishedBy", "id": "string", "out": "WorkingValue", "in": "InformationSource", "properties": []}},
+    {
+      "key": "excludes",
+      "value": {
+        "label": "excludes",
+        "id": "string",
+        "out": "Pilot",
+        "in": "Aircraft",
+        "properties": [
+          {"key": "reason", "value": "string", "required": false},
+          {"key": "aboutOperatorNotEquipment", "value": "boolean", "required": false},
+          {"key": "note", "value": "string", "required": false}]}},
+    {
+      "key": "experienceAt",
+      "value": {"label": "experienceAt", "id": "string", "out": "Experience", "in": "Site", "properties": []}},
+    {
+      "key": "experienceInAircraft",
+      "value": {"label": "experienceInAircraft", "id": "string", "out": "Experience", "in": "Aircraft", "properties": []}},
+    {
+      "key": "expressedAs",
+      "value": {
+        "label": "expressedAs",
+        "id": "string",
+        "out": "AbortRule",
+        "in": "Landmark",
+        "properties": [{"key": "why", "value": "string", "required": false}]}},
+    {"key": "feltAs", "value": {"label": "feltAs", "id": "string", "out": "Cue", "in": "Sensation", "properties": []}},
+    {
+      "key": "flies",
+      "value": {
+        "label": "flies",
+        "id": "string",
+        "out": "Pilot",
+        "in": "Aircraft",
+        "properties": [
+          {"key": "isPreferred", "value": "boolean", "required": false},
+          {"key": "reason", "value": "string", "required": false},
+          {"key": "hoursOnType", "value": {"integer": "int32"}, "required": false}]}},
+    {"key": "gateAtSite", "value": {"label": "gateAtSite", "id": "string", "out": "Gate", "in": "Site", "properties": []}},
+    {
+      "key": "gateDecidedBy",
+      "value": {
+        "label": "gateDecidedBy",
+        "id": "string",
+        "out": "Gate",
+        "in": "InformationSource",
+        "properties": [{"key": "isTiebreaker", "value": "boolean", "required": false}]}},
+    {
+      "key": "gateEnforces",
+      "value": {"label": "gateEnforces", "id": "string", "out": "Gate", "in": "PersonalMinimum", "properties": []}},
+    {
+      "key": "gateEvaluates",
+      "value": {"label": "gateEvaluates", "id": "string", "out": "Gate", "in": "ConditionFactor", "properties": []}},
+    {
+      "key": "hasCharacteristic",
+      "value": {"label": "hasCharacteristic", "id": "string", "out": "Site", "in": "SiteCharacteristic", "properties": []}},
+    {
+      "key": "hasConstraint",
+      "value": {"label": "hasConstraint", "id": "string", "out": "Site", "in": "Constraint", "properties": []}},
+    {
+      "key": "hasExperience",
+      "value": {"label": "hasExperience", "id": "string", "out": "Pilot", "in": "Experience", "properties": []}},
+    {"key": "hasHazard", "value": {"label": "hasHazard", "id": "string", "out": "Site", "in": "Hazard", "properties": []}},
+    {
+      "key": "hasLandmark",
+      "value": {"label": "hasLandmark", "id": "string", "out": "Site", "in": "Landmark", "properties": []}},
+    {
+      "key": "hasObstruction",
+      "value": {"label": "hasObstruction", "id": "string", "out": "Site", "in": "Obstruction", "properties": []}},
+    {
+      "key": "hasPublishedProcedure",
+      "value": {"label": "hasPublishedProcedure", "id": "string", "out": "Site", "in": "PublishedProcedure", "properties": []}},
+    {"key": "hasRunway", "value": {"label": "hasRunway", "id": "string", "out": "Site", "in": "Runway", "properties": []}},
+    {
+      "key": "hasSide",
+      "value": {"label": "hasSide", "id": "string", "out": "Tradeoff", "in": "TradeoffSide", "properties": []}},
+    {"key": "hasSkill", "value": {"label": "hasSkill", "id": "string", "out": "Pilot", "in": "Skill", "properties": []}},
+    {
+      "key": "hasStep",
+      "value": {
+        "label": "hasStep",
+        "id": "string",
+        "out": "Procedure",
+        "in": "Step",
+        "properties": [{"key": "sequence", "value": {"integer": "int32"}, "required": false}]}},
+    {
+      "key": "hasSurface",
+      "value": {"label": "hasSurface", "id": "string", "out": "Site", "in": "Surface", "properties": []}},
+    {
+      "key": "hasTerrainFeature",
+      "value": {"label": "hasTerrainFeature", "id": "string", "out": "Site", "in": "TerrainFeature", "properties": []}},
+    {
+      "key": "hasWorkingValue",
+      "value": {"label": "hasWorkingValue", "id": "string", "out": "Site", "in": "WorkingValue", "properties": []}},
+    {
+      "key": "hazardConsequence",
+      "value": {"label": "hazardConsequence", "id": "string", "out": "Hazard", "in": "Consequence", "properties": []}},
+    {"key": "hazardCue", "value": {"label": "hazardCue", "id": "string", "out": "Hazard", "in": "Cue", "properties": []}},
+    {"key": "heardAs", "value": {"label": "heardAs", "id": "string", "out": "Cue", "in": "SoundCue", "properties": []}},
+    {"key": "holds", "value": {"label": "holds", "id": "string", "out": "Pilot", "in": "Doctrine", "properties": []}},
+    {
+      "key": "lessonModified",
+      "value": {"label": "lessonModified", "id": "string", "out": "LessonLearned", "in": "Technique", "properties": []}},
+    {
+      "key": "lessonModifiedDoctrine",
+      "value": {"label": "lessonModifiedDoctrine", "id": "string", "out": "LessonLearned", "in": "Doctrine", "properties": []}},
+    {
+      "key": "lessonModifiedMinimum",
+      "value": {"label": "lessonModifiedMinimum", "id": "string", "out": "LessonLearned", "in": "PersonalMinimum", "properties": []}},
+    {
+      "key": "lightCondition",
+      "value": {"label": "lightCondition", "id": "string", "out": "ConditionFactor", "in": "LightCondition", "properties": []}},
+    {
+      "key": "loadingCondition",
+      "value": {"label": "loadingCondition", "id": "string", "out": "ConditionFactor", "in": "LoadingCondition", "properties": []}},
+    {
+      "key": "measuredBy",
+      "value": {
+        "label": "measuredBy",
+        "id": "string",
+        "out": "AbortRule",
+        "in": "InformationSource",
+        "properties": [{"key": "method", "value": "string", "required": false}]}},
+    {"key": "mentions", "value": {"label": "mentions", "id": "string", "out": "Comment", "in": "Concept", "properties": []}},
+    {
+      "key": "minimumAtSite",
+      "value": {
+        "label": "minimumAtSite",
+        "id": "string",
+        "out": "PersonalMinimum",
+        "in": "Site",
+        "properties": [{"key": "tightenedForThisSite", "value": "boolean", "required": false}]}},
+    {
+      "key": "minimumFor",
+      "value": {"label": "minimumFor", "id": "string", "out": "PersonalMinimum", "in": "ConditionFactor", "properties": []}},
+    {
+      "key": "minimumRationale",
+      "value": {"label": "minimumRationale", "id": "string", "out": "PersonalMinimum", "in": "Rationale", "properties": []}},
+    {
+      "key": "observes",
+      "value": {"label": "observes", "id": "string", "out": "Pilot", "in": "PersonalMinimum", "properties": []}},
+    {
+      "key": "operatesAt",
+      "value": {
+        "label": "operatesAt",
+        "id": "string",
+        "out": "Pilot",
+        "in": "Site",
+        "properties": [
+          {"key": "timesLanded", "value": {"integer": "int32"}, "required": false},
+          {"key": "firstLanded", "value": "string", "required": false},
+          {"key": "familiarity", "value": "string", "required": false}]}},
+    {
+      "key": "presentsCondition",
+      "value": {
+        "label": "presentsCondition",
+        "id": "string",
+        "out": "Site",
+        "in": "ConditionFactor",
+        "properties": [{"key": "typicality", "value": "string", "required": false}]}},
+    {
+      "key": "procedureAtSite",
+      "value": {"label": "procedureAtSite", "id": "string", "out": "Procedure", "in": "Site", "properties": []}},
+    {
+      "key": "procedureForAircraft",
+      "value": {"label": "procedureForAircraft", "id": "string", "out": "Procedure", "in": "Aircraft", "properties": []}},
+    {
+      "key": "projectionBasedOn",
+      "value": {"label": "projectionBasedOn", "id": "string", "out": "Projection", "in": "Cue", "properties": []}},
+    {
+      "key": "projectionComparedToLandmark",
+      "value": {"label": "projectionComparedToLandmark", "id": "string", "out": "Projection", "in": "Landmark", "properties": []}},
+    {
+      "key": "projectionDegradedBy",
+      "value": {
+        "label": "projectionDegradedBy",
+        "id": "string",
+        "out": "Projection",
+        "in": "Consequence",
+        "properties": [{"key": "how", "value": "string", "required": false}]}},
+    {
+      "key": "projectionDuring",
+      "value": {"label": "projectionDuring", "id": "string", "out": "Projection", "in": "Step", "properties": []}},
+    {
+      "key": "projectionUsesSkill",
+      "value": {"label": "projectionUsesSkill", "id": "string", "out": "Projection", "in": "Skill", "properties": []}},
+    {
+      "key": "projects",
+      "value": {"label": "projects", "id": "string", "out": "Pilot", "in": "Projection", "properties": []}},
+    {
+      "key": "providesMargin",
+      "value": {
+        "label": "providesMargin",
+        "id": "string",
+        "out": "Aircraft",
+        "in": "Contingency",
+        "properties": [{"key": "how", "value": "string", "required": false}]}},
+    {
+      "key": "publishedAs",
+      "value": {"label": "publishedAs", "id": "string", "out": "Site", "in": "PublishedData", "properties": []}},
+    {
+      "key": "reads",
+      "value": {
+        "label": "reads",
+        "id": "string",
+        "out": "Pilot",
+        "in": "Cue",
+        "properties": [{"key": "confidence", "value": "string", "required": false}]}},
+    {
+      "key": "refines",
+      "value": {
+        "label": "refines",
+        "id": "string",
+        "out": "Technique",
+        "in": "PublishedProcedure",
+        "properties": [{"key": "reason", "value": "string", "required": false}]}},
+    {"key": "seenAs", "value": {"label": "seenAs", "id": "string", "out": "Cue", "in": "SightPicture", "properties": []}},
+    {
+      "key": "sensedThrough",
+      "value": {
+        "label": "sensedThrough",
+        "id": "string",
+        "out": "Cue",
+        "in": "Aircraft",
+        "properties": [{"key": "via", "value": "string", "required": false}]}},
+    {
+      "key": "servesPurpose",
+      "value": {
+        "label": "servesPurpose",
+        "id": "string",
+        "out": "Step",
+        "in": "Purpose",
+        "properties": [{"key": "primary", "value": "boolean", "required": false}]}},
+    {
+      "key": "sideBuys",
+      "value": {"label": "sideBuys", "id": "string", "out": "TradeoffSide", "in": "Purpose", "properties": []}},
+    {
+      "key": "sideRisks",
+      "value": {"label": "sideRisks", "id": "string", "out": "TradeoffSide", "in": "Consequence", "properties": []}},
+    {
+      "key": "stepConfiguration",
+      "value": {"label": "stepConfiguration", "id": "string", "out": "Step", "in": "Configuration", "properties": []}},
+    {
+      "key": "stepEnergyState",
+      "value": {"label": "stepEnergyState", "id": "string", "out": "Step", "in": "EnergyState", "properties": []}},
+    {
+      "key": "stepFollowedBy",
+      "value": {"label": "stepFollowedBy", "id": "string", "out": "Step", "in": "Step", "properties": []}},
+    {
+      "key": "stepHasContingency",
+      "value": {"label": "stepHasContingency", "id": "string", "out": "Step", "in": "Contingency", "properties": []}},
+    {
+      "key": "stepInforms",
+      "value": {"label": "stepInforms", "id": "string", "out": "Step", "in": "Decision", "properties": []}},
+    {
+      "key": "stepProvidesInfoAbout",
+      "value": {"label": "stepProvidesInfoAbout", "id": "string", "out": "Step", "in": "ConditionFactor", "properties": []}},
+    {
+      "key": "stepUsesTechnique",
+      "value": {"label": "stepUsesTechnique", "id": "string", "out": "Step", "in": "Technique", "properties": []}},
+    {
+      "key": "stricterThan",
+      "value": {
+        "label": "stricterThan",
+        "id": "string",
+        "out": "PersonalMinimum",
+        "in": "PublishedData",
+        "properties": [{"key": "reason", "value": "string", "required": false}]}},
+    {
+      "key": "suitableFor",
+      "value": {
+        "label": "suitableFor",
+        "id": "string",
+        "out": "Aircraft",
+        "in": "Site",
+        "properties": [
+          {"key": "marginNotes", "value": "string", "required": false},
+          {"key": "suitability", "value": "string", "required": false}]}},
+    {
+      "key": "surfaceCondition",
+      "value": {"label": "surfaceCondition", "id": "string", "out": "ConditionFactor", "in": "SurfaceCondition", "properties": []}},
+    {
+      "key": "taught",
+      "value": {"label": "taught", "id": "string", "out": "Experience", "in": "LessonLearned", "properties": []}},
+    {
+      "key": "techniqueAnchoredTo",
+      "value": {
+        "label": "techniqueAnchoredTo",
+        "id": "string",
+        "out": "Technique",
+        "in": "Landmark",
+        "properties": [{"key": "relation", "value": "string", "required": false}]}},
+    {
+      "key": "techniqueConfiguration",
+      "value": {"label": "techniqueConfiguration", "id": "string", "out": "Technique", "in": "Configuration", "properties": []}},
+    {
+      "key": "techniqueConsequence",
+      "value": {"label": "techniqueConsequence", "id": "string", "out": "Technique", "in": "Consequence", "properties": []}},
+    {
+      "key": "techniqueEnergyState",
+      "value": {"label": "techniqueEnergyState", "id": "string", "out": "Technique", "in": "EnergyState", "properties": []}},
+    {
+      "key": "techniqueForAircraft",
+      "value": {"label": "techniqueForAircraft", "id": "string", "out": "Technique", "in": "Aircraft", "properties": []}},
+    {
+      "key": "techniqueJustifiedBy",
+      "value": {"label": "techniqueJustifiedBy", "id": "string", "out": "Technique", "in": "Rationale", "properties": []}},
+    {
+      "key": "techniqueRequiresSkill",
+      "value": {"label": "techniqueRequiresSkill", "id": "string", "out": "Technique", "in": "Skill", "properties": []}},
+    {
+      "key": "testedDuring",
+      "value": {"label": "testedDuring", "id": "string", "out": "AbortRule", "in": "Step", "properties": []}},
+    {
+      "key": "tradeoffDimension",
+      "value": {"label": "tradeoffDimension", "id": "string", "out": "Tradeoff", "in": "EnergyState", "properties": []}},
+    {
+      "key": "tradeoffIn",
+      "value": {"label": "tradeoffIn", "id": "string", "out": "Tradeoff", "in": "Step", "properties": []}},
+    {
+      "key": "tradeoffResolvedBy",
+      "value": {"label": "tradeoffResolvedBy", "id": "string", "out": "Tradeoff", "in": "PersonalMinimum", "properties": []}},
+    {
+      "key": "triggersDecision",
+      "value": {"label": "triggersDecision", "id": "string", "out": "AbortRule", "in": "Decision", "properties": []}},
+    {"key": "uses", "value": {"label": "uses", "id": "string", "out": "Pilot", "in": "Procedure", "properties": []}},
+    {
+      "key": "visibilityCondition",
+      "value": {
+        "label": "visibilityCondition",
+        "id": "string",
+        "out": "ConditionFactor",
+        "in": "VisibilityCondition",
+        "properties": []}},
+    {
+      "key": "windCondition",
+      "value": {"label": "windCondition", "id": "string", "out": "ConditionFactor", "in": "WindCondition", "properties": []}},
+    {
+      "key": "yields",
+      "value": {
+        "label": "yields",
+        "id": "string",
+        "out": "Doctrine",
+        "in": "AbortRule",
+        "properties": [{"key": "derivation", "value": "string", "required": false}]}}]}
