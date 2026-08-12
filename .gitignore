@@ -9,3 +9,5 @@ transcripts/
 dist/
 build/
 .idea/
+*.swp
+*.swo
