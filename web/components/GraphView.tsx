@@ -47,6 +47,7 @@ function semanticLabel(vertex: GraphVertex, display?: GraphDisplayConfig): strin
 }
 
 function radius(label: string, display?: GraphDisplayConfig): number {
+  if (label === "SessionSection") return 9;
   if (display?.radii?.[label]) return display.radii[label];
   if (label === "Person") return 18;
   if (label === "Headache") return 16;
@@ -55,6 +56,7 @@ function radius(label: string, display?: GraphDisplayConfig): number {
 }
 
 function color(label: string, display?: GraphDisplayConfig): string {
+  if (label === "SessionSection") return "#9aa3b2";
   if (display?.colors?.[label]) return display.colors[label];
   if (label === "Person") return "#0f766e";
   if (label === "Headache") return "#b2462e";
@@ -186,6 +188,58 @@ export function GraphView({ graph, display }: { graph: GraphState; display?: Gra
       ),
     [graph.edges, hiddenEdges, visibleIds]
   );
+
+  // A fact with no semantic edge is not floating in reality: its evidence names
+  // the transcript episode it came from, and that episode belongs to an
+  // interview section. Render that real provenance chain as a dashed
+  // "grounded in" link to a small section hub, so isolated knowledge stays
+  // visually anchored without inventing any semantic relationship.
+  const grounding = useMemo(() => {
+    const connected = new Set<string>();
+    for (const e of edgeList) {
+      connected.add(e.out);
+      connected.add(e.in);
+    }
+    const sectionOfEpisode = new Map<string, string>();
+    for (const e of Object.values(graph.edges)) {
+      if (e.label === "hasEpisode") sectionOfEpisode.set(e.in, e.out);
+    }
+    const evidenceTarget = new Map<string, string>();
+    for (const e of Object.values(graph.edges)) {
+      const target = graph.vertices[e.in];
+      if (target?.label === "ProvenanceEvidence") evidenceTarget.set(e.out, e.in);
+    }
+    const hubIds = new Set<string>();
+    const links: { source: string; target: string; label: string }[] = [];
+    for (const vertex of vertexList) {
+      if (connected.has(vertex.id)) continue;
+      const evidenceId = evidenceTarget.get(vertex.id);
+      const evidence = evidenceId ? graph.vertices[evidenceId] : undefined;
+      const episode = typeof evidence?.properties.sourceEpisode === "string"
+        ? evidence.properties.sourceEpisode
+        : undefined;
+      const sectionId = episode ? sectionOfEpisode.get(episode) : undefined;
+      if (!sectionId || !graph.vertices[sectionId]) continue;
+      hubIds.add(sectionId);
+      links.push({ source: vertex.id, target: sectionId, label: "grounded in" });
+    }
+    const hubs = [...hubIds]
+      .map((id) => graph.vertices[id])
+      .filter((v): v is GraphVertex => Boolean(v));
+    return { hubs, links };
+  }, [edgeList, graph.edges, graph.vertices, vertexList]);
+
+  const layoutVertexList = useMemo(
+    () => [...vertexList, ...grounding.hubs],
+    [vertexList, grounding.hubs]
+  );
+  const layoutEdgeList = useMemo(
+    () => [
+      ...edgeList,
+      ...grounding.links.map((l) => ({ id: `${l.source}--grounded-->${l.target}`, label: l.label, out: l.source, in: l.target, properties: {} })),
+    ],
+    [edgeList, grounding.links]
+  );
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomGroupRef = useRef<SVGGElement>(null);
   const [layout, setLayout] = useState<{ nodes: LayoutNode[]; edges: LayoutEdge[] } | null>(null);
@@ -199,7 +253,7 @@ export function GraphView({ graph, display }: { graph: GraphState; display?: Gra
     positionsRef.current = nodePositions.size > 0 ? nodePositions : positionsRef.current;
   }, [nodePositions]);
   useEffect(() => {
-    const result = computeLayout(vertexList, edgeList, display, positionsRef.current);
+    const result = computeLayout(layoutVertexList, layoutEdgeList, display, positionsRef.current);
     if (result) {
       setLayout(result);
       const pos = new Map<string, Pos>();
@@ -463,10 +517,17 @@ export function GraphView({ graph, display }: { graph: GraphState; display?: Gra
               const x2 = tgtPos.x - ux * tr;
               const y2 = tgtPos.y - uy * tr;
 
+              const isGrounding = edge.label === "grounded in";
               return (
                 <g key={`e${i}`}>
-                  <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#c5bfb3" strokeWidth={1.3} markerEnd="url(#arrow)" />
-                  {len > 90 && (
+                  <line
+                    x1={x1} y1={y1} x2={x2} y2={y2}
+                    stroke={isGrounding ? "#d3cec4" : "#c5bfb3"}
+                    strokeWidth={isGrounding ? 1 : 1.3}
+                    strokeDasharray={isGrounding ? "4 4" : undefined}
+                    markerEnd={isGrounding ? undefined : "url(#arrow)"}
+                  />
+                  {!isGrounding && len > 90 && (
                     <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 6} textAnchor="middle" fontSize={8} fill="#888">
                       <tspan stroke="white" strokeWidth={3}>{edge.label}</tspan>
                       <tspan>{edge.label}</tspan>

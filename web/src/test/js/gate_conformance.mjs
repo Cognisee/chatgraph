@@ -232,14 +232,23 @@ test("schema mode skips governance rules", () => {
 
 test("singleton policies are not duplicated", () => {
   const graph = graphWith(
-    { id: "policy:checkin:existing", label: "CheckInPolicy", properties: { name: "Check-in" } }
+    { id: "policy:checkin:existing", label: "CheckInPolicy", properties: { standardTime: "3pm" } }
   );
   const result = runGate(
-    { vertices: [{ id: "policy:checkin:other", label: "CheckInPolicy", properties: { name: "Check-in" } }], edges: [] },
+    { vertices: [{ id: "policy:checkin:other", label: "CheckInPolicy", properties: { standardTime: "3pm" } }], edges: [] },
     graph, "hospitality", { evidenceContext: CONTEXT }
   );
   assert.equal(result.delta.vertices.filter((v) => v.label === "CheckInPolicy").length, 0);
   assert.ok(result.findings.some((f) => f.ruleId === "HR009" && f.action === "dropped"));
+});
+
+test("a knowledge vertex with no string content is rejected as a padding artifact", () => {
+  const result = runGate(
+    { vertices: [{ id: "policy:checkout:x", label: "CheckOutPolicy", properties: { lateCheckOut: false }, evidence: { traceText: "we hand every guest a hot towel" } }], edges: [] },
+    EMPTY_GRAPH, "hospitality", { evidenceContext: { ...CONTEXT, utterance: UTTERANCE } }
+  );
+  assert.equal(result.delta.vertices.filter((v) => v.label === "CheckOutPolicy").length, 0);
+  assert.ok(result.findings.some((f) => f.ruleId === "HR001" && f.message.includes("no textual content")));
 });
 
 // --- generated prompt -----------------------------------------------------

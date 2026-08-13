@@ -30,6 +30,8 @@ export default function Home() {
   const [isListening, setIsListening] = useState(false);
   const [speechAvailable, setSpeechAvailable] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>("idle");
+  const [showCallEnded, setShowCallEnded] = useState(false);
+  const callHadTurnsRef = useRef(false);
   const [warnings, setWarnings] = useState<string[]>([]);
   const recognitionRef = useRef<ReturnType<typeof createSpeechRecognition>>(null);
   const realtimeRef = useRef<OpenAIRealtimeSession | null>(null);
@@ -231,9 +233,14 @@ export default function Home() {
     if (realtimeStatus !== "idle") {
       realtimeRef.current?.stop();
       realtimeRef.current = null;
+      // The call just ended: offer the complete call data (session export,
+      // transcript, audit input, gate log) in one click.
+      if (callHadTurnsRef.current) setShowCallEnded(true);
       return;
     }
     if (!session) return;
+    callHadTurnsRef.current = false;
+    setShowCallEnded(false);
     const currentSession = session;
     const domain = getDomain(currentSession.domainId);
     const initialAssistantText =
@@ -261,6 +268,7 @@ export default function Home() {
       },
       onError: (message) => setWarnings([message]),
       onUserTranscript: (text) => {
+        callHadTurnsRef.current = true;
         const next = appendMessage("user", text);
         if (next) void extractVoiceTurn(text, next);
       },
@@ -276,6 +284,8 @@ export default function Home() {
   async function reset() {
     realtimeRef.current?.stop();
     realtimeRef.current = null;
+    setShowCallEnded(false);
+    callHadTurnsRef.current = false;
     stopSpeaking();
     setWarnings([]);
     setInput("");
@@ -286,6 +296,8 @@ export default function Home() {
     if (!isDomainId(domainId) || domainId === selectedDomainId) return;
     realtimeRef.current?.stop();
     realtimeRef.current = null;
+    setShowCallEnded(false);
+    callHadTurnsRef.current = false;
     stopSpeaking();
     setWarnings([]);
     setInput("");
@@ -403,6 +415,30 @@ export default function Home() {
             )}
             <div ref={bottomRef} />
           </div>
+
+          {showCallEnded && (
+            <div className="call-ended-strip">
+              <span>Call ended. Your session data is ready.</span>
+              <button
+                type="button"
+                className="call-ended-download"
+                onClick={() => {
+                  exportAll();
+                  setShowCallEnded(false);
+                }}
+              >
+                <Download size={15} /> Download call data
+              </button>
+              <button
+                type="button"
+                className="call-ended-dismiss"
+                onClick={() => setShowCallEnded(false)}
+                aria-label="Dismiss"
+              >
+                &times;
+              </button>
+            </div>
+          )}
 
           {warnings.length > 0 && (
             <div className="warning-strip">

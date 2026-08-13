@@ -189,6 +189,18 @@ export function runGate(
       findings.push(finding("HR001", severityOf(contract, "HR001", "hard", options), `${candidate.id} missing required ${missing.join(", ")}`, candidate.id, "dropped"));
       continue;
     }
+    // A knowledge fact must say something: a vertex whose only surviving
+    // properties are booleans/numbers ({"lateCheckOut": false}) names no concept,
+    // cannot be resolved by keyText, and is almost always a padding artifact.
+    if (governed && contract.knowledgeLabels.has(candidate.label)) {
+      const hasContent = Object.values(properties).some(
+        (value) => typeof value === "string" && value.trim().length > 0
+      );
+      if (!hasContent) {
+        findings.push(finding("HR001", severityOf(contract, "HR001", "hard", options), `${candidate.id} carries no textual content; a knowledge fact needs at least one substantive string property`, candidate.id, "dropped"));
+        continue;
+      }
+    }
     if (governed && !admitEvidenceQuality(candidate.label, properties, contract, findings, candidate.id, options)) continue;
     if (governed && !admitTextQuality(candidate.label, properties, contract, findings, candidate.id, options)) continue;
     if (governed && !admitSingleton(candidate, properties, graph, contract, findings, options, supersessions)) continue;

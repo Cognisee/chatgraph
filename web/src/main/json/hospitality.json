@@ -1267,7 +1267,11 @@
       "@value": {
         "label": "signalTriggers",
         "outV": "GuestSignal",
-        "inV": "DecisionRule",
+        "inV": [
+          "DecisionRule",
+          "OperatingHeuristic",
+          "RecoveryAction"
+        ],
         "properties": [
           {
             "key": "traceText",
@@ -1442,7 +1446,11 @@
       "@value": {
         "label": "heuristicExplains",
         "outV": "OperatingHeuristic",
-        "inV": "DecisionRule",
+        "inV": [
+          "DecisionRule",
+          "TimingRule",
+          "ServiceStandard"
+        ],
         "properties": [
           {
             "key": "traceText",
@@ -1592,7 +1600,12 @@
       "@value": {
         "label": "modulatedBy",
         "outV": "ContextualConstraint",
-        "inV": "DecisionRule",
+        "inV": [
+          "DecisionRule",
+          "OperatingHeuristic",
+          "ServiceStandard",
+          "TimingRule"
+        ],
         "properties": [
           {
             "key": "traceText",

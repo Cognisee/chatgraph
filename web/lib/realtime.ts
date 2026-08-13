@@ -170,6 +170,23 @@ export class OpenAIRealtimeSession {
       return;
     }
 
+    if (event.type === "input_audio_buffer.speech_started") {
+      // TRUE barge-in: the microphone heard the expert start speaking. With
+      // interrupt_response enabled the server truncates the assistant's audio
+      // itself; the client mirrors that by cancelling its in-flight response so
+      // the two sides agree. This is the ONLY place a response is cancelled —
+      // transcription events must never cancel (see queueUserTranscript).
+      if (this.responseInFlight) {
+        this.cancelResponse();
+        this.responseInFlight = false;
+        this.assistantTranscript = "";
+      }
+      // The expert is speaking: hold any pending response until their words
+      // arrive and settle, otherwise a retry can answer a half-spoken thought.
+      this.userTranscriptSettleUntil = Date.now() + OpenAIRealtimeSession.USER_TRANSCRIPT_SETTLE_MS;
+      return;
+    }
+
     if (event.type === "conversation.item.input_audio_transcription.completed") {
       const text = event.transcript?.trim();
       if (text) {
@@ -233,21 +250,33 @@ export class OpenAIRealtimeSession {
       if (text) this.emitAssistantTranscript(text);
       this.pendingAssistantTurns = Math.max(0, this.pendingAssistantTurns - 1);
       this.needsResponseAfterSettle = false;
+      // Any transcription that arrived while this response was speaking was
+      // record-only (see queueUserTranscript): flush it now so the transcript
+      // and extraction see the text, without requesting another response —
+      // the answer that just finished already covered that audio.
+      this.flushUserTranscript();
     }
   }
 
   private queueUserTranscript(text: string): void {
     this.userTranscriptBuffer.push(text);
+
+    // A transcription that lands while the assistant is already answering is
+    // LAGGING PAPERWORK, not an interruption: Whisper delivers text seconds
+    // after the audio, and the in-flight response was generated from the full
+    // audio the model actually heard. The previous code treated this as a
+    // barge-in and cancelled the response — the assistant audibly started one
+    // sentence, cut off mid-word, and then spoke a different one (only the
+    // second reaching the transcript). Late text is therefore record-only: it
+    // is flushed for the transcript/extraction when the response completes,
+    // and no additional response is requested for it.
+    if (this.responseInFlight) {
+      return;
+    }
+
     if (this.pendingAssistantTurns === 0) this.pendingAssistantTurns = 1;
     this.userTranscriptSettleUntil = Date.now() + OpenAIRealtimeSession.USER_TRANSCRIPT_SETTLE_MS;
     this.needsResponseAfterSettle = true;
-
-    if (this.responseInFlight) {
-      // Barge-in: the expert resumed speaking while the assistant was answering.
-      this.cancelResponse();
-      this.responseInFlight = false;
-      this.assistantTranscript = "";
-    }
 
     this.clearUserTranscriptTimer();
     this.userTranscriptTimer = setTimeout(() => {
