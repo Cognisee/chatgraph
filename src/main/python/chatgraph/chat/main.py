@@ -243,20 +243,25 @@ class Coordinator:
         ts_start = self._patient_turn_start or (_now() - t0)
         ts_end = _now() - t0
         self._patient_turn_start = None
+        # "user", not "patient": the speaker label appears in the console,
+        # the .txt and the .jsonl, and is shown to the extractor as
+        # conversation history. It is domain-agnostic code, so it must not
+        # assume a clinical interview -- a pilot being interviewed about an
+        # airstrip was labelled "patient" in every recorded transcript.
         self._transcript.write(
             Utterance(
-                speaker="patient",
+                speaker="user",
                 text=text,
                 ts_start=ts_start,
                 ts_end=ts_end,
             )
         )
         self._conversation.add_user(text)
-        print(f"\npatient: {text}")
+        print(f"\nuser: {text}")
 
         # Phase 2: kick off graph extraction in the background. Don't
         # block the conversation; the agent reply path keeps running.
-        self._rolling.add("patient", text)
+        self._rolling.add("user", text)
         if self._extractor is not None and self._graph_writer is not None:
             asyncio.create_task(self._extract_and_write(text))
 

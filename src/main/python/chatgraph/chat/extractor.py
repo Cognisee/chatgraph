@@ -570,23 +570,27 @@ def _build_extract_tool(
                         "headache interviews; other domains may ignore."
                     ),
                 },
+                # Field names keep the `patient_` prefix for wire
+                # compatibility with the medical domain's plumbing; the
+                # descriptions are domain-neutral because the model sees
+                # the subject's turns labelled "user".
                 "patient_signaled_done": {
                     "type": "boolean",
                     "description": (
-                        "Set true if the latest patient utterance signals "
+                        "Set true if the latest user utterance signals "
                         "they're finished discussing the topic at hand "
                         "(\"that's all\", \"I'm done\", \"let's stop\", "
                         "\"I have to go\", etc.). The agent will stop "
-                        "asking questions until the patient resumes "
+                        "asking questions until the user resumes "
                         "substantive content. Set false otherwise "
-                        "(including when the patient just paused or "
+                        "(including when the user just paused or "
                         "said 'okay')."
                     ),
                 },
                 "patient_resumed": {
                     "type": "boolean",
                     "description": (
-                        "Set true if the patient was previously marked "
+                        "Set true if the user was previously marked "
                         "done but is now offering substantive new "
                         "content. The agent will resume asking "
                         "questions. Set false otherwise."

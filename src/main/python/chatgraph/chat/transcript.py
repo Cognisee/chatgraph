@@ -31,7 +31,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class Utterance:
-    speaker: str  # "patient" or "agent"
+    speaker: str  # "user" or "agent"
     text: str
     ts_start: float
     ts_end: float
