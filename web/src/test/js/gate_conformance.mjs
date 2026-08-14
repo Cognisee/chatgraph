@@ -15,7 +15,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { gateContract } from "@/lib/gate/contract";
-import { runGate } from "@/lib/gate/gate";
+import { runGate, keyText } from "@/lib/gate/gate";
+import { graphQuality } from "@/lib/graph-quality";
 import { extractionToolSchema, provenanceInstructions, schemaReference } from "@/lib/gate/prompt";
 import { extractGovernedDelta } from "@/lib/server/extract-governed";
 import { buildGateLog, buildSessionExport } from "@/lib/export";
@@ -1188,6 +1189,268 @@ test("assertion-only property guidance is derived from the schema's type declara
     );
     assert.ok(declared, `"${prop}" is listed but not a declared boolean/integer property`);
   }
+});
+
+// --- naming and padding (iteration 10) ------------------------------------
+
+test("a vertex is named by the schema's first declared string property, not a hand-written list", () => {
+  // Regression: a hand-maintained priority list ranked `description` above
+  // `duration`, so an OperatingTenure holding {duration: "10 years"} was named,
+  // resolved, and displayed by its padding description instead.
+  for (const label of CONTRACT.knowledgeLabels) {
+    const spec = CONTRACT.vertexSpecs.get(label);
+    assert.ok(spec, `${label} must be declared`);
+    const firstString = [...spec.propertyTypes.entries()].find(([, type]) => type === "string")?.[0];
+    if (!firstString) continue;
+    // Every other declared string property is filled with a decoy, so the only
+    // way to answer "FIRST" is to honour declaration order.
+    const properties = {};
+    for (const [key, type] of spec.propertyTypes) {
+      if (type === "string") properties[key] = key === firstString ? "FIRST" : "SECOND";
+    }
+    assert.equal(
+      keyText(properties, spec),
+      "FIRST",
+      `${label} must be named by its first declared string property (${firstString})`
+    );
+  }
+});
+
+test("OperatingTenure is named by its duration, not by a description that restates other facts", () => {
+  const spec = CONTRACT.vertexSpecs.get("OperatingTenure");
+  assert.equal(
+    keyText({ duration: "10 years", description: "general manager for a large hotel chain" }, spec),
+    "10 years"
+  );
+});
+
+test("every naming property the gate can pick is actually declared by some label", () => {
+  // The list this replaced carried `signalText`, which no label declares.
+  const declared = new Set();
+  for (const spec of CONTRACT.vertexSpecs.values()) {
+    for (const [key, type] of spec.propertyTypes) if (type === "string") declared.add(key);
+  }
+  for (const label of CONTRACT.knowledgeLabels) {
+    const spec = CONTRACT.vertexSpecs.get(label);
+    const firstString = [...spec.propertyTypes.entries()].find(([, type]) => type === "string")?.[0];
+    if (firstString) assert.ok(declared.has(firstString), `${firstString} must be a declared property`);
+  }
+});
+
+test("HR027 drops a property that restates the other facts in the delta", () => {
+  // Synthetic paraphrase of the shape that produced the live defect: three facts
+  // in one breath, the third described by a restatement of the other two.
+  const utterance =
+    "I am the general manager, the company runs a fairly large chain of hotels, " +
+    "and I have been doing this for 10 years now";
+  const result = runGate(
+    {
+      vertices: [
+        { id: "expertrole:gm", label: "ExpertRole",
+          properties: { title: "General Manager", description: "general manager" },
+          evidence: { traceText: "I am the general manager", confidence: "high" } },
+        { id: "business:chain", label: "HospitalityBusiness",
+          properties: { name: "Large Hotel Chain", businessType: "hotel chain", scale: "large" },
+          evidence: { traceText: "the company runs a fairly large chain of hotels", confidence: "high" } },
+        { id: "tenure:10y", label: "OperatingTenure",
+          properties: { duration: "10 years", description: "general manager for a large hotel chain" },
+          evidence: { traceText: "I have been doing this for 10 years now", confidence: "high" } }
+      ],
+      edges: []
+    },
+    graphWith(), "hospitality",
+    { evidenceContext: { ...CONTEXT, utterance } }
+  );
+  const byLabel = Object.fromEntries(result.delta.vertices.map((v) => [v.label, v.properties]));
+
+  // The foreign restatement and the self-duplicate both go.
+  assert.equal(byLabel.OperatingTenure.description, undefined, "a description about other facts must be dropped");
+  assert.equal(byLabel.ExpertRole.description, undefined, "a description restating the title must be dropped");
+  // The facts themselves survive intact.
+  assert.equal(byLabel.OperatingTenure.duration, "10 years");
+  assert.equal(byLabel.ExpertRole.title, "General Manager");
+  // Typed categorical slots covered by the vertex's own name are NOT padding.
+  assert.equal(byLabel.HospitalityBusiness.businessType, "hotel chain", "a typed slot must survive");
+  assert.equal(byLabel.HospitalityBusiness.scale, "large", "a typed slot must survive");
+  assert.ok(result.findings.some((f) => f.ruleId === "HR027" && f.action === "repaired"));
+});
+
+test("HR027 leaves informative prose alone", () => {
+  const utterance =
+    "Casa Almendra is a 14-room boutique guesthouse in Seville, and I keep two rooms ready by eleven for early arrivals.";
+  const result = runGate(
+    {
+      vertices: [
+        { id: "business:casa", label: "HospitalityBusiness",
+          properties: { name: "Casa Almendra", description: "a 14-room boutique guesthouse in Seville" },
+          evidence: { traceText: "Casa Almendra is a 14-room boutique guesthouse in Seville", confidence: "high" } },
+        { id: "policy:checkin", label: "CheckInPolicy",
+          properties: { standardTime: "eleven", earlyArrivalHandling: "keep two rooms ready by eleven for early arrivals" },
+          evidence: { traceText: "I keep two rooms ready by eleven for early arrivals", confidence: "high" } }
+      ],
+      edges: []
+    },
+    graphWith(), "hospitality",
+    { evidenceContext: { ...CONTEXT, utterance } }
+  );
+  const byLabel = Object.fromEntries(result.delta.vertices.map((v) => [v.label, v.properties]));
+  assert.equal(byLabel.HospitalityBusiness.description, "a 14-room boutique guesthouse in Seville");
+  assert.equal(byLabel.CheckInPolicy.earlyArrivalHandling, "keep two rooms ready by eleven for early arrivals");
+  assert.equal(result.findings.filter((f) => f.ruleId === "HR027").length, 0);
+});
+
+test("HR027 never strips a vertex down to no content", () => {
+  // A lone fact whose only optional text restates its own name would otherwise
+  // be emptied; HR001 exists to reject exactly that vertex.
+  const result = runGate(
+    {
+      vertices: [
+        { id: "signal:tired", label: "GuestSignal",
+          properties: { name: "tired arrival", interpretation: "tired arrival" },
+          evidence: { traceText: "a tired arrival", confidence: "high" } }
+      ],
+      edges: []
+    },
+    graphWith(), "hospitality",
+    { evidenceContext: { ...CONTEXT, utterance: "You learn to spot a tired arrival." } }
+  );
+  const signal = result.delta.vertices.find((v) => v.label === "GuestSignal");
+  assert.ok(signal, "the fact must still be admitted");
+  const text = Object.values(signal.properties).filter((v) => typeof v === "string" && v.trim());
+  assert.ok(text.length > 0, "a fact must never be left with no textual content");
+});
+
+test("the export and its audit sibling report the same connectivity", () => {
+  const graph = {
+    vertices: {
+      "person:expert": { id: "person:expert", label: "Person", properties: { name: "expert" } },
+      "role:gm": { id: "role:gm", label: "ExpertRole", properties: { title: "General Manager" } },
+      "biz:chain": { id: "biz:chain", label: "HospitalityBusiness", properties: { name: "Large Hotel Chain" } }
+    },
+    edges: {
+      e1: { id: "e1", label: "hasRole", out: "person:expert", in: "role:gm", properties: {} },
+      e2: { id: "e2", label: "operatesBusiness", out: "person:expert", in: "biz:chain", properties: {} }
+    }
+  };
+  const quality = graphQuality(graph, "hospitality");
+  // Person is the hub the opening facts hang from: counting only
+  // knowledge->knowledge made this connected graph look like two isolated facts.
+  assert.equal(quality.semanticEdges, 2);
+  assert.equal(quality.isolated.length, 0);
+  assert.equal(quality.components, 1, "this is one connected graph");
+  assert.equal(quality.connectedShare, 1);
+});
+
+test("graph quality flags a sentence sitting in a label slot but not in a prose slot", () => {
+  const graph = {
+    vertices: {
+      // ruleText is declared to hold a rule: a full sentence is correct here.
+      "rule:a": { id: "rule:a", label: "DecisionRule", properties: {
+        ruleText: "If a guest arrives before noon and the room is physically ready, allow early check-in regardless of policy" } },
+      // name is a handle: a sentence here is the defect.
+      "biz:b": { id: "biz:b", label: "HospitalityBusiness", properties: {
+        name: "I look after every property in a fairly large chain of hotels across the region" } }
+    },
+    edges: {}
+  };
+  const quality = graphQuality(graph, "hospitality");
+  const flagged = quality.sentenceNamed.map((f) => f.id);
+  assert.ok(flagged.includes("biz:b"), "a sentence in a name slot must be flagged");
+  assert.ok(!flagged.includes("rule:a"), "a sentence in a ruleText slot is by design");
+});
+
+test("HR028 refuses to rewrite a stored fact from an utterance that does not witness it", () => {
+  const stored = {
+    id: "guestsignal:stored", label: "GuestSignal",
+    properties: { name: "tired arrival", interpretation: "needs quiet and speed" }
+  };
+  const graph = graphWith(stored);
+  const result = runGate(
+    {
+      vertices: [
+        { id: "guestsignal:stored", label: "GuestSignal",
+          properties: { name: "tired arrival", interpretation: "wants a loud welcome" } }
+      ],
+      edges: []
+    },
+    graph, "hospitality",
+    { evidenceContext: { ...CONTEXT, utterance: "Keep the questions short please." }, deterministicIds: true }
+  );
+  assert.equal(
+    result.delta.vertices.filter((v) => v.label === "GuestSignal").length,
+    0,
+    "an unwitnessed re-assertion must not be written"
+  );
+  assert.equal(
+    graph.vertices["guestsignal:stored"].properties.interpretation,
+    "needs quiet and speed",
+    "the stored fact must be left exactly as it was"
+  );
+  assert.ok(result.findings.some((f) => f.ruleId === "HR028" && f.action === "dropped"));
+});
+
+test("HR029 drops a fact built entirely from an earlier turn", () => {
+  // The live failure: an utterance about interview pacing re-emitted a policy
+  // captured two turns earlier, and because CheckInPolicy is a singleton the
+  // re-emission superseded the real one.
+  const result = runGate(
+    {
+      vertices: [
+        { id: "rule:copy", label: "TimingRule",
+          properties: { ruleText: "three rooms ready by eleven", exception: "changed after a bad August" },
+          evidence: { traceText: "Keep the questions short please", confidence: "high" } }
+      ],
+      edges: []
+    },
+    graphWith(), "hospitality",
+    {
+      evidenceContext: {
+        ...CONTEXT,
+        utterance: "Keep the questions short please, and let's not spend too long on each one.",
+        priorUtterances: [
+          "Actually let me correct something. I said two rooms ready by eleven — it's three rooms now, we changed it last spring after a bad August."
+        ]
+      }
+    }
+  );
+  assert.equal(
+    result.delta.vertices.filter((v) => v.label === "TimingRule").length,
+    0,
+    "a fact whose every field is copied from an earlier turn must not be admitted"
+  );
+  assert.equal(
+    result.delta.edges.filter((e) => e.label === "supersededBy").length,
+    0,
+    "a fact that never happened must not retire one that did"
+  );
+  assert.ok(result.findings.some((f) => f.ruleId === "HR029" && f.action === "dropped"));
+});
+
+test("HR029 leaves a paraphrase of the current utterance alone", () => {
+  const utterance =
+    "Someone dragging a big case slowly at four in the afternoon has had a bad journey and needs quiet and speed.";
+  const result = runGate(
+    {
+      vertices: [
+        { id: "persona:tired", label: "GuestPersona",
+          properties: { name: "tired arrival", primaryNeed: "quiet and speed" },
+          evidence: { traceText: "has had a bad journey and needs quiet and speed", confidence: "high" } }
+      ],
+      edges: []
+    },
+    graphWith(), "hospitality",
+    {
+      evidenceContext: {
+        ...CONTEXT,
+        utterance,
+        priorUtterances: ["Official check-in is three PM but that's mostly fiction."]
+      }
+    }
+  );
+  const persona = result.delta.vertices.find((v) => v.label === "GuestPersona");
+  assert.ok(persona, "a paraphrase of THIS utterance must survive");
+  assert.equal(persona.properties.primaryNeed, "quiet and speed");
+  assert.equal(result.findings.filter((f) => f.ruleId === "HR029").length, 0);
 });
 
 // --- report ---------------------------------------------------------------
