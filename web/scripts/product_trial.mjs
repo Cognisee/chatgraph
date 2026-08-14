@@ -20,6 +20,7 @@ import { getDomain } from "@/lib/domains";
 import { mergeDelta } from "@/lib/schema";
 import { extractGovernedDelta } from "@/lib/server/extract-governed";
 import { gateContract } from "@/lib/gate/contract";
+import { graphQuality, interviewNote } from "@/lib/graph-quality";
 
 // --- env ---------------------------------------------------------------------
 for (const line of fs.existsSync(".env") ? fs.readFileSync(".env", "utf8").split("\n") : []) {
@@ -50,12 +51,15 @@ You are being interviewed by a knowledge engineer. Answer as a real person speak
 - Never break character, never mention being an AI.`;
 
 // --- production agent (same prompt + model + params as app/api/chat) ---------
-async function agentReply(messages) {
+async function agentReply(messages, graph) {
+  // Same composition as the deployed route: the interviewer sees which captured
+  // points are still unconnected and is asked to draw the relationship out.
+  const note = interviewNote(graph, "hospitality");
   const response = await openai.chat.completions.create({
     model: process.env.CHATGRAPH_AGENT_MODEL || "gpt-4o",
     max_completion_tokens: 420,
     messages: [
-      { role: "system", content: DOMAIN.agentPrompt },
+      { role: "system", content: note ? `${DOMAIN.agentPrompt}\n\n${note}` : DOMAIN.agentPrompt },
       ...messages.map((m) => ({ role: m.role, content: m.content }))
     ]
   });
@@ -102,7 +106,7 @@ for (let turn = 1; turn <= TURNS; turn += 1) {
   graph = mergeDelta(graph, delta);
   turnRecords.push({ turn, userMessageId: userMessage.id, userText: expertText, delta, warnings, gate });
 
-  const agentText = await agentReply(messages);
+  const agentText = await agentReply(messages, graph);
   messages.push({ id: `a${turn}`, role: "assistant", content: agentText, createdAt: now + turn * 1000 + 500 });
   process.stdout.write(`         agent  ${agentText.slice(0, 72).replace(/\n/g, " ")}…\n`);
 }

@@ -1,5 +1,20 @@
 export type RealtimeStatus = "idle" | "connecting" | "connected";
 
+export const REALTIME_SILENCE_UNTIL_USER_PROMPT =
+  "The app speaks the opening line separately. Do not initiate the conversation. Stay silent until you receive a patient audio transcript, then answer only that patient turn.";
+
+/**
+ * The one composition of the voice agent's instructions, shared by the token
+ * route (session creation) and the mid-call session.update path (page.tsx after
+ * each extraction), so the two can never drift. `note` is the interview-state
+ * briefing derived from the live graph; the session starts without one because
+ * the graph starts empty.
+ */
+export function voiceInstructions(agentPrompt: string, note?: string | null): string {
+  const base = `${agentPrompt}\n\nRealtime voice rule: ${REALTIME_SILENCE_UNTIL_USER_PROMPT}`;
+  return note ? `${base}\n\n${note}` : base;
+}
+
 type RealtimeCallbacks = {
   onStatus: (status: RealtimeStatus) => void;
   onUserTranscript: (text: string) => void;
@@ -322,6 +337,17 @@ export class OpenAIRealtimeSession {
       clearTimeout(this.userTranscriptTimer);
       this.userTranscriptTimer = null;
     }
+  }
+
+  /**
+   * Replace the session instructions mid-call. Used after each extracted turn
+   * to hand the voice interviewer the current interview-state briefing — the
+   * graph steering the conversation is the point of the feedback loop, and the
+   * realtime API only takes instructions via session.update.
+   */
+  updateInstructions(instructions: string): void {
+    if (this.channel?.readyState !== "open") return;
+    this.channel.send(JSON.stringify({ type: "session.update", session: { instructions } }));
   }
 
   private cancelResponse(responseId?: string): void {

@@ -16,7 +16,8 @@ import {
 import { GraphView } from "@/components/GraphView";
 import { domainList, getDomain, isDomainId } from "@/lib/domains";
 import { exportSessionBundle } from "@/lib/export";
-import { OpenAIRealtimeSession, type RealtimeStatus } from "@/lib/realtime";
+import { OpenAIRealtimeSession, voiceInstructions, type RealtimeStatus } from "@/lib/realtime";
+import { interviewNote } from "@/lib/graph-quality";
 import { mergeDelta } from "@/lib/schema";
 import { clearSession, loadSession, saveSession } from "@/lib/storage";
 import { createSpeechRecognition, speak, speechRecognitionAvailable, stopSpeaking } from "@/lib/speech";
@@ -187,6 +188,13 @@ export default function Home() {
       sessionRef.current = next;
       setSession(next);
       setWarnings(hasGraphDelta ? [] : (data.warnings ?? []));
+      // Hand the voice interviewer the current interview-state briefing: which
+      // captured points are still unconnected, so its next question can draw
+      // the relationship out of the expert instead of leaving it unsaid.
+      const domainForNote = getDomain(next.domainId);
+      realtimeRef.current?.updateInstructions(
+        voiceInstructions(domainForNote.agentPrompt, interviewNote(next.graph, next.domainId))
+      );
     } catch {
       setWarnings(["Voice transcript saved, but graph extraction failed for that turn."]);
     }

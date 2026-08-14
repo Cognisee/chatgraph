@@ -94,21 +94,24 @@ function namingPropertyOf(vertex: GraphVertex, contract: GateContract): string |
  * A name that is really an identifier. The extractor reaches for one when it
  * mints a vertex to satisfy an edge endpoint: a trial produced GuestSignal
  * {name: "arrival:fragile"} beside GuestPersona {name: "fragile"}, naming the
- * signal after the id of the persona it pointed at. Colon-namespaced or
- * whole-string slug forms only, so ordinary hyphenated prose ("check-in delay")
- * is never mistaken for one.
+ * signal after the id of the persona it pointed at.
  *
- * Every segment must contain a letter, which is what keeps a clock time out of
- * this: CheckInPolicy{standardTime: "15:00"} is a perfectly good name and was
- * flagged as an identifier until the numeric case was excluded.
+ * Two false-positive channels shaped this test. A clock time is not an id:
+ * CheckInPolicy{standardTime: "15:00"} was flagged until segments were required
+ * to contain a letter. And a single hyphenated compound is prose, not a slug:
+ * GuestPersona{name: "work-focused"} was flagged until the slug form was
+ * required to have at least three segments — "early-checkin-rule" is an id,
+ * "check-in" and "work-focused" are words. Colon-namespaced forms are always
+ * ids; no natural name contains a colon without spaces.
  */
 function readsAsIdentifier(name: string): boolean {
   const text = name.trim();
   if (!text) return false;
   if (/\s/.test(text)) return false;
   const segments = text.split(/[:-]/);
-  if (segments.length < 2) return false;
-  return segments.every((segment) => /[a-z]/i.test(segment));
+  if (!segments.every((segment) => /[a-z]/i.test(segment))) return false;
+  if (text.includes(":")) return segments.length >= 2;
+  return segments.length >= 3;
 }
 
 const SENTENCE_MAX_WORDS = 8;
@@ -119,6 +122,54 @@ function readsAsSentence(name: string): boolean {
   // First-person narration is the extractor copying the utterance rather than
   // naming the concept ("I keep two rooms ready").
   return /^(i|we|you|they|it|he|she)\b/i.test(name.trim());
+}
+
+/**
+ * A briefing for the INTERVIEWER about the graph being built behind it.
+ *
+ * This closes the one loop the pipeline still left open. The gate can refuse to
+ * invent a relationship the expert never stated — but nothing downstream could
+ * *get it stated*. When a fact sat unattached (the recurring one: a staffing
+ * constraint whose bearing on the check-in policy was obvious to the expert and
+ * unsaid), the extractor's isolation retry could only re-read the same words.
+ * The interviewer is the only component that can create new words, so it is the
+ * right place to route the gap: it is told, in interview terms, which captured
+ * points are still floating and what kind of connection the schema could hold,
+ * and it asks. The expert states the relationship; HR026's witness rule then
+ * admits it from their own words. Symbolic state steers the conversation; the
+ * conversation feeds the symbols.
+ *
+ * Deterministic, compact, and framed so the agent never leaks mechanism words
+ * ("graph", "node", "extraction") to the expert.
+ */
+export function interviewNote(graph: GraphState, domainId: string): string | null {
+  const contract = gateContract(domainId);
+  if (!contract.governed) return null;
+  const quality = graphQuality(graph, domainId);
+  if (quality.isolated.length === 0) return null;
+
+  const plainLabel = (label: string) =>
+    label.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+
+  const lines = quality.isolated.slice(0, 3).map((fact) => {
+    // The relations the schema could hold for this fact, in plain words.
+    const partners = new Set<string>();
+    for (const spec of contract.edgeSpecs.values()) {
+      if (contract.provenanceEdgeLabels.has(spec.label) || spec.label === SUPERSEDED_BY) continue;
+      if (spec.out.has(fact.label)) for (const target of spec.in) partners.add(plainLabel(target));
+      if (spec.in.has(fact.label)) for (const source of spec.out) partners.add(plainLabel(source));
+    }
+    partners.delete("provenance evidence");
+    const hint = [...partners].slice(0, 4).join(", ");
+    return `- "${fact.name}" (${plainLabel(fact.label)})${hint ? ` — could relate to: ${hint}` : ""}`;
+  });
+
+  return [
+    "INTERVIEW STATE (private guidance — never mention graphs, nodes, capture, or extraction to the expert):",
+    "These points from the expert are captured but not yet connected to anything else they said:",
+    ...lines,
+    "When it fits the flow, ask ONE natural follow-up that draws out how such a point relates to something already discussed — e.g. how a constraint changes a policy, what a signal tells them to do, what outcome a practice leads to. Let the expert state the relationship in their own words; never assert it for them."
+  ].join("\n");
 }
 
 /** Union-find over an edge list; returns root -> component size. */

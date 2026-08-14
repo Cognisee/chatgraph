@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as d3Force from "d3-force";
 import { keyText } from "@/lib/gate/gate";
 import { gateContract, type GateContract } from "@/lib/gate/contract";
+import { graphQuality } from "@/lib/graph-quality";
 import type { GraphDisplayConfig } from "@/lib/domains";
 import type { GraphState, GraphVertex } from "@/lib/types";
 
@@ -167,6 +168,17 @@ function computeLayout(
 
 export function GraphView({ graph, display, domainId }: { graph: GraphState; display?: GraphDisplayConfig; domainId: string }) {
   const contract = useMemo(() => gateContract(domainId), [domainId]);
+  // Live health readout: the same reporter the download bundle and the trial
+  // harness use, so what the user sees during the session is what the analysis
+  // will say afterwards.
+  const quality = useMemo(
+    () => (contract.governed ? graphQuality(graph, domainId) : null),
+    [contract, graph, domainId]
+  );
+  const isolatedIds = useMemo(
+    () => new Set((quality?.isolated ?? []).map((fact) => fact.id)),
+    [quality]
+  );
   const hiddenLabels = useMemo(() => new Set(display?.hiddenLabels ?? []), [display]);
   const hiddenEdges = useMemo(() => new Set(display?.hiddenEdges ?? []), [display]);
   const hiddenTextPatterns = useMemo(
@@ -495,6 +507,30 @@ export function GraphView({ graph, display, domainId }: { graph: GraphState; dis
       <div className="graph-topline">
         <span>{vertexList.length} vertices</span>
         <span>{edgeList.length} edges</span>
+        {quality && quality.knowledgeVertices > 0 && (
+          <>
+            <span title="Facts the expert has stated, currently live in the graph">
+              {quality.knowledgeVertices} facts
+            </span>
+            <span title="Facts carrying a verbatim quote from the expert as evidence">
+              {quality.knowledgeVertices > 0
+                ? `${Math.round((quality.groundedKnowledge / quality.knowledgeVertices) * 100)}% grounded`
+                : ""}
+            </span>
+            {quality.isolated.length > 0 ? (
+              <span
+                style={{ color: "#b45309", fontWeight: 600 }}
+                title={`Not yet related to anything else: ${quality.isolated.map((f) => f.name).join("; ")}`}
+              >
+                {quality.isolated.length} unlinked
+              </span>
+            ) : (
+              <span style={{ color: "#15803d" }} title="Every fact is related to at least one other">
+                all linked
+              </span>
+            )}
+          </>
+        )}
         {selected && <span style={{ marginLeft: "auto", opacity: 0.7 }}>selected: {semanticLabel(selected, contract, display)}</span>}
       </div>
       <div className="graph-canvas">
@@ -562,6 +598,14 @@ export function GraphView({ graph, display, domainId }: { graph: GraphState; dis
 
               return (
                 <g key={node.id} style={{ cursor: "pointer" }}>
+                  {isolatedIds.has(node.id) && (
+                    <circle
+                      cx={pos.x} cy={pos.y} r={r + 5}
+                      fill="none" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="3 3"
+                    >
+                      <title>Not yet related to anything else the expert said</title>
+                    </circle>
+                  )}
                   <circle cx={pos.x} cy={pos.y} r={r} fill={c} stroke={c} strokeOpacity={0.25} strokeWidth={5} />
                   <circle cx={pos.x} cy={pos.y} r={r - 1} fill={c} stroke={c} strokeWidth={1.5} />
                   <foreignObject x={pos.x - 60} y={pos.y + r + 2} width={120} height={16}>

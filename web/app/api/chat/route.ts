@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { getDomain } from "@/lib/domains";
+import { interviewNote } from "@/lib/graph-quality";
 import { extractGraphDelta } from "@/lib/server/extract";
 import type { ChatMessage, ChatRequest, GraphDelta } from "@/lib/types";
 
@@ -37,7 +38,14 @@ export async function POST(request: Request) {
 
   const openai = new OpenAI({ apiKey });
   const domain = getDomain(body.domainId);
-  const agentPromise = runAgent(openai, body.messages, domain.agentPrompt);
+  // The interviewer sees which captured points are still unconnected and asks
+  // for the relationship; the expert's answer is what the gate can then admit.
+  const note = interviewNote(body.graph, domain.id);
+  const agentPromise = runAgent(
+    openai,
+    body.messages,
+    note ? `${domain.agentPrompt}\n\n${note}` : domain.agentPrompt
+  );
   const extractorPromise = extractGraphDelta(openai, latestUser.content, body);
   const [agentResult, extractorResult] = await Promise.allSettled([
     agentPromise,
