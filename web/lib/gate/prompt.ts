@@ -10,7 +10,7 @@
 
 import type { GraphState } from "@/lib/types";
 import { gateContract, type GateContract } from "./contract";
-import { keyText, SUPERSEDED_BY } from "./gate";
+import { vertexKeyText, SUPERSEDED_BY } from "./gate";
 
 /** Vertex and edge inventory, with required properties marked by `!`. */
 export function schemaReference(domainId: string): string {
@@ -185,7 +185,7 @@ export function knownEntitiesSummary(domainId: string, graph: GraphState): strin
   const shown = vertices.slice(-SUMMARY_MAX_VERTICES);
   const shownIds = new Set(shown.map((vertex) => vertex.id));
   const vertexLines = shown.map((vertex) => {
-    const text = keyText(vertex.properties);
+    const text = vertexKeyText(vertex, contract);
     const clipped = text.length > SUMMARY_MAX_TEXT ? `${text.slice(0, SUMMARY_MAX_TEXT - 1)}…` : text;
     return clipped ? `${vertex.id} (${vertex.label}) "${clipped}"` : `${vertex.id} (${vertex.label})`;
   });
@@ -207,10 +207,101 @@ export function knownEntitiesSummary(domainId: string, graph: GraphState): strin
     "",
     "EXISTING RELATIONSHIPS (do not re-emit):",
     edgeLines.join("\n") || "(none yet)",
-    omittedVertices > 0 ? `\n(${omittedVertices} older entities omitted)` : ""
+    omittedVertices > 0 ? `\n(${omittedVertices} older entities omitted)` : "",
+    "",
+    attachmentOptions(contract, shown.map((vertex) => vertex.label))
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/**
+ * The relations that could legally attach what the graph already holds.
+ *
+ * Isolated facts and mistyped relations came from the same place: the model knew
+ * two concepts were related but had to guess which relation joined them, out of
+ * 33, from the full schema table. In one trial it wanted to attach a staffing
+ * ContextualConstraint to the CheckInPolicy — a pair the schema explicitly
+ * permits — reached for `modulatedBy`, which does not accept CheckInPolicy, and
+ * lost the edge; the constraint was left floating in a graph that already
+ * contained its legal partner.
+ *
+ * So the options are enumerated instead: every relation whose BOTH endpoint
+ * labels are already present, rendered in the schema's own direction. Generated
+ * from the contract, never authored, so it cannot drift from the schema and
+ * shrinks to nothing on an empty graph.
+ */
+function attachmentOptions(contract: GateContract, presentLabels: string[]): string {
+  const present = new Set(presentLabels);
+  // Person is always in the graph, and the identity facts hang off it.
+  present.add("Person");
+
+  const lines: string[] = [];
+  for (const [label, spec] of contract.edgeSpecs) {
+    if (gateAuthored(contract, label) || label === SUPERSEDED_BY) continue;
+    const from = [...spec.out].filter((endpoint) => present.has(endpoint));
+    const to = [...spec.in].filter((endpoint) => present.has(endpoint));
+    if (from.length === 0 || to.length === 0) continue;
+    lines.push(`${from.join("|")} --${label}--> ${to.join("|")}`);
+  }
+  if (lines.length === 0) return "";
+  return [
+    "ATTACHMENT OPTIONS — every relation whose endpoints are BOTH already in this graph. " +
+    "If the utterance relates a new fact to something above, the relation you need is almost certainly here; " +
+    "copy its direction exactly. Emit an edge only when the expert's words assert the relationship:",
+    lines.join("\n")
+  ].join("\n");
+}
+
+/**
+ * Retry guidance for facts a delta left unattached.
+ *
+ * An isolated fact produces no hard finding, so before this the retry loop never
+ * fired for the defect users complain about most: the gate would admit a
+ * ContextualConstraint about solo afternoon shifts, leave it touching nothing,
+ * and stop — even though the CheckInPolicy it constrains was sitting in the
+ * graph and the schema had a relation for exactly that pair.
+ *
+ * Each unattached fact is named with the relations that could legally hold it,
+ * computed against the labels actually present. Returns null when nothing can be
+ * said, so a fact with no legal partner in the graph does not cost an attempt.
+ */
+export function isolationFeedback(
+  domainId: string,
+  graph: GraphState,
+  isolated: { id: string; label: string; name: string }[]
+): string | null {
+  if (isolated.length === 0) return null;
+  const contract = gateContract(domainId);
+  const present = new Set(Object.values(graph.vertices).map((vertex) => vertex.label));
+
+  const lines: string[] = [];
+  for (const fact of isolated) {
+    const options: string[] = [];
+    for (const [label, spec] of contract.edgeSpecs) {
+      if (gateAuthored(contract, label) || label === SUPERSEDED_BY) continue;
+      if (spec.out.has(fact.label)) {
+        const targets = [...spec.in].filter((endpoint) => present.has(endpoint));
+        if (targets.length > 0) options.push(`${fact.label} --${label}--> ${targets.join("|")}`);
+      }
+      if (spec.in.has(fact.label)) {
+        const sources = [...spec.out].filter((endpoint) => present.has(endpoint));
+        if (sources.length > 0) options.push(`${sources.join("|")} --${label}--> ${fact.label}`);
+      }
+    }
+    if (options.length === 0) continue;
+    lines.push(`- "${fact.name}" (${fact.label}) is connected to nothing. Relations available: ${options.join("; ")}`);
+  }
+  if (lines.length === 0) return null;
+
+  return [
+    "These facts were admitted but left unattached:",
+    lines.join("\n"),
+    "",
+    "Re-emit the same delta with the relationships the utterance supports, using the exact ids from KNOWN ENTITIES. " +
+    "Do not add new facts and do not invent a relationship the expert did not state — if the utterance genuinely " +
+    "asserts no relation for one of these, leave it unattached and re-emit the rest unchanged."
+  ].join("\n");
 }
 
 function evidenceSchema(contract: GateContract): Record<string, unknown> {

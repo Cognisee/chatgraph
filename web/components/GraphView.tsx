@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as d3Force from "d3-force";
 import { keyText } from "@/lib/gate/gate";
+import { gateContract, type GateContract } from "@/lib/gate/contract";
 import type { GraphDisplayConfig } from "@/lib/domains";
 import type { GraphState, GraphVertex } from "@/lib/types";
 
@@ -21,17 +22,31 @@ type LayoutEdge = {
   label: string;
 };
 
-function semanticLabel(vertex: GraphVertex, display?: GraphDisplayConfig): string {
+function semanticLabel(vertex: GraphVertex, contract?: GateContract, display?: GraphDisplayConfig): string {
   const { label, properties: p } = vertex;
   if (display?.labelOverrides?.[label]) return display.labelOverrides[label];
   const v = p.value;
   if (typeof v === "string" && v.length > 0) return v;
-  // The same naming priority the gate uses for resolution, so a DecisionRule
-  // shows its ruleText instead of the bare word "DecisionRule".
-  const key = keyText(p);
+  // The same naming rule the gate uses for resolution — the schema's first
+  // declared string property — so a node shows the datum it is about
+  // (OperatingTenure: "10 years") rather than whichever prose property the
+  // extractor happened to fill (".. general manager for a large hotel chain").
+  const key = keyText(p, contract?.vertexSpecs.get(label));
   if (key) return key;
-  const duration = p.duration;
-  if (typeof duration === "string" && duration.length > 0) return duration;
+  if (label === "Frequency") {
+    const count = typeof p.count === "number" ? p.count : undefined;
+    const per = typeof p.per === "string" ? p.per : "";
+    if (count !== undefined && per) return `${count} / ${per}`;
+    if (count !== undefined) return String(count);
+  }
+  if (label === "PainCharacter") {
+    const note = p.note;
+    if (typeof note === "string" && note.length > 0) return note;
+    const trueFlags = Object.entries(p)
+      .filter(([, value]) => value === true)
+      .map(([key]) => key.replace(/([A-Z])/g, " $1").toLowerCase());
+    if (trueFlags.length > 0) return trueFlags.join(", ");
+  }
   if (typeof v === "number") return String(v);
   if (label === "Headache" && typeof p.description === "string") return p.description;
   if (label === "FamilyHistory") {
@@ -150,7 +165,8 @@ function computeLayout(
   };
 }
 
-export function GraphView({ graph, display }: { graph: GraphState; display?: GraphDisplayConfig }) {
+export function GraphView({ graph, display, domainId }: { graph: GraphState; display?: GraphDisplayConfig; domainId: string }) {
+  const contract = useMemo(() => gateContract(domainId), [domainId]);
   const hiddenLabels = useMemo(() => new Set(display?.hiddenLabels ?? []), [display]);
   const hiddenEdges = useMemo(() => new Set(display?.hiddenEdges ?? []), [display]);
   const hiddenTextPatterns = useMemo(
@@ -172,7 +188,7 @@ export function GraphView({ graph, display }: { graph: GraphState; display?: Gra
         (vertex) =>
           !hiddenLabels.has(vertex.label) &&
           !supersededIds.has(vertex.id) &&
-          !hiddenTextPatterns.some((pattern) => pattern.test(semanticLabel(vertex, display)))
+          !hiddenTextPatterns.some((pattern) => pattern.test(semanticLabel(vertex, contract, display)))
       ),
     [display, graph.vertices, hiddenLabels, hiddenTextPatterns, supersededIds]
   );
@@ -429,7 +445,7 @@ export function GraphView({ graph, display }: { graph: GraphState; display?: Gra
   }, [display, layout, nodePositions]);
 
   const labelMap = useMemo(
-    () => new Map(vertexList.map((v) => [v.id, semanticLabel(v, display)])),
+    () => new Map(vertexList.map((v) => [v.id, semanticLabel(v, contract, display)])),
     [display, vertexList]
   );
 
@@ -467,7 +483,7 @@ export function GraphView({ graph, display }: { graph: GraphState; display?: Gra
       if (!other || other.label === "ProvenanceEvidence" || other.label === "TranscriptEpisode" || other.label === "SessionSection") continue;
       const arrow = edgeItem.out === selected.id ? `→ ${edgeItem.label}` : `← ${edgeItem.label}`;
       relations.push({
-        text: `${arrow} ${semanticLabel(other, display)}`,
+        text: `${arrow} ${semanticLabel(other, contract, display)}`,
         trace: typeof edgeItem.properties?.traceText === "string" ? edgeItem.properties.traceText : null
       });
     }
@@ -479,7 +495,7 @@ export function GraphView({ graph, display }: { graph: GraphState; display?: Gra
       <div className="graph-topline">
         <span>{vertexList.length} vertices</span>
         <span>{edgeList.length} edges</span>
-        {selected && <span style={{ marginLeft: "auto", opacity: 0.7 }}>selected: {semanticLabel(selected, display)}</span>}
+        {selected && <span style={{ marginLeft: "auto", opacity: 0.7 }}>selected: {semanticLabel(selected, contract, display)}</span>}
       </div>
       <div className="graph-canvas">
         <svg
@@ -576,7 +592,7 @@ export function GraphView({ graph, display }: { graph: GraphState; display?: Gra
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <strong style={{ fontSize: 13 }}>{semanticLabel(selected, display)}</strong>
+              <strong style={{ fontSize: 13 }}>{semanticLabel(selected, contract, display)}</strong>
               <button
                 type="button"
                 onClick={() => setSelectedId(null)}

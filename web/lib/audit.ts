@@ -13,7 +13,8 @@
  */
 
 import { gateContract } from "./gate/contract";
-import { keyText } from "./gate/gate";
+import { vertexKeyText } from "./gate/gate";
+import { graphQuality, type GraphQuality } from "./graph-quality";
 import type { GraphEdge, GraphVertex, JsonValue } from "./types";
 
 type ExportLike = {
@@ -48,14 +49,10 @@ export type AuditEdge = {
 export type AuditInput = {
   session: string;
   note: string;
-  exportStats: {
+  exportStats: GraphQuality & {
     vertices: number;
     edges: number;
-    knowledgeVertices: number;
     groundedKnowledgeVertices: number;
-    semanticEdges: number;
-    groundedSemanticEdges: number;
-    supersededFacts: number;
   };
   attribution: {
     episodeCollisions: string[];
@@ -170,7 +167,7 @@ export function deriveAuditInput(session: ExportLike, sessionName: string): Audi
     const { uttIdx } = uttIdxOf(e.id);
     const trace = e.properties?.traceText;
     edges.push({
-      rel: `${outV.label}(${keyText(outV.properties) || outV.id}) --${e.label}--> ${inV.label}(${keyText(inV.properties) || inV.id})`,
+      rel: `${outV.label}(${vertexKeyText(outV, contract) || outV.id}) --${e.label}--> ${inV.label}(${vertexKeyText(inV, contract) || inV.id})`,
       trace: typeof trace === "string" ? trace : null,
       uttIdx
     });
@@ -193,15 +190,14 @@ export function deriveAuditInput(session: ExportLike, sessionName: string): Audi
     note:
       "Derived mechanically (lib/audit.ts). uttIdx is the 1-based index into the session's user messages, " +
       "attributed through the admitting turn record (collision-proof), with the evidence episode as cross-check.",
+    // Counted by the shared reporter rather than re-derived here: this file and
+    // lib/export.ts once disagreed about the same session's semantic edge count
+    // (3 vs 1) because each had its own idea of what counts as one.
     exportStats: {
       vertices: Object.keys(vertices).length,
       edges: Object.keys(edgeMap).length,
-      knowledgeVertices:
-        facts.length + [...superseded].filter((id) => contract.knowledgeLabels.has(vertices[id]?.label)).length,
       groundedKnowledgeVertices: facts.filter((f) => f.trace).length,
-      semanticEdges: edges.length,
-      groundedSemanticEdges: edges.filter((e) => e.trace).length,
-      supersededFacts: superseded.size
+      ...graphQuality({ vertices, edges: edgeMap }, domainId)
     },
     attribution: {
       episodeCollisions,

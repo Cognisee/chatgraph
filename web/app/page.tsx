@@ -472,7 +472,7 @@ export default function Home() {
           <header className="graph-header">
             <h2>graph</h2>
           </header>
-          <GraphView graph={session.graph} display={domain.graphDisplay} />
+          <GraphView graph={session.graph} display={domain.graphDisplay} domainId={session.domainId} />
         </aside>
       </section>
     </main>

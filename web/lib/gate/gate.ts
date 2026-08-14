@@ -20,7 +20,7 @@
  */
 
 import type { GraphDelta, GraphEdge, GraphState, GraphVertex, JsonValue } from "@/lib/types";
-import { gateContract, severityOf as contractSeverity, type GateContract, type Severity } from "./contract";
+import { gateContract, severityOf as contractSeverity, type GateContract, type Severity, type VertexSpec } from "./contract";
 
 export type GateMode = "schema" | "governed";
 
@@ -34,6 +34,12 @@ export type EvidenceContext = {
   speaker: string;
   /** The turn being extracted. Evidence is checked for being a span of it. */
   utterance?: string;
+  /**
+   * Everything the expert said BEFORE this turn. Used only by HR029, to tell a
+   * fact extracted from this utterance apart from one remembered out of an
+   * earlier one.
+   */
+  priorUtterances?: string[];
 };
 
 export type GateOptions = {
@@ -282,10 +288,76 @@ export function runGate(
     admittedEdges.push({ id, label: item.label, out: item.out, in: item.in, properties });
   }
 
+  // HR027 runs on what survived, because whether a property restates the delta
+  // can only be judged once the delta's other facts are known.
+  if (governed) stripRestatedProperties(admittedVertices, contract, findings, options);
+  const remembered = governed
+    ? stripRememberedProperties(admittedVertices, contract, findings, options)
+    : new Set<string>();
+  if (remembered.size > 0) {
+    // A fact that never happened supersedes nothing: the singleton it displaced
+    // must stay live, or an utterance about interview pacing retires a real one.
+    for (let i = supersessions.length - 1; i >= 0; i -= 1) {
+      if (remembered.has(supersessions[i].supersedingId)) supersessions.splice(i, 1);
+    }
+  }
+
   // Provenance attachment is checked after admission, on what actually survived.
-  const ungrounded = governed
+  const ungroundedAll = governed
     ? checkProvenanceAttachment(admittedVertices, admittedEdges, labels, contract, findings, options)
     : new Set<string>();
+  // Dropped outright only when the spec's soft provenance rule is escalated.
+  const ungrounded =
+    governed && severityOf(contract, "HR006", "soft", options) === "hard" ? ungroundedAll : new Set<string>();
+
+  // HR028: an unwitnessed re-assertion must not rewrite a fact already stored.
+  //
+  // On a turn where the expert only asked the interviewer to keep the questions
+  // short, the extractor re-emitted a TimingRule it had captured two turns
+  // earlier — with a DIFFERENT ruleType, and with evidence that quoted neither
+  // utterance. Because the id is content-derived the re-emission merged onto the
+  // stored fact and silently overwrote it from an utterance that never mentioned
+  // it. Nothing is lost by refusing this: the fact is already in the graph, and
+  // edges may still reference it, because HR005 resolves endpoints against the
+  // graph as well as the delta.
+  const unwitnessed = new Set<string>();
+  if (governed) {
+    for (const vertex of admittedVertices) {
+      if (!ungroundedAll.has(vertex.id)) continue;
+      const stored = graph.vertices[vertex.id];
+      if (stored && stored.label === vertex.label) {
+        unwitnessed.add(vertex.id);
+        findings.push(finding(
+          "HR028",
+          severityOf(contract, "HR028", "soft", options),
+          `${vertex.id} restates a stored fact without evidence from this utterance; the stored fact is left unchanged`,
+          vertex.id,
+          "dropped"
+        ));
+        continue;
+      }
+      // Superseding is destructive, so it is held to the same witness standard
+      // HR026 puts on a cross-turn edge. A logistics turn retired a real
+      // check-in policy this way: HR029 stripped the field copied verbatim from
+      // an earlier turn, but a numeral rendering of it ("11:00" for "eleven")
+      // survived the lexical test, and that residue was enough to mint a new
+      // singleton and supersede the genuine one. An ungrounded fact may not
+      // retire a grounded one.
+      const displaces = supersessions.some((item) => item.supersedingId === vertex.id);
+      if (!displaces) continue;
+      unwitnessed.add(vertex.id);
+      findings.push(finding(
+        "HR028",
+        severityOf(contract, "HR028", "soft", options),
+        `${vertex.id} would supersede a stored fact without evidence from this utterance; the stored fact stays live`,
+        vertex.id,
+        "dropped"
+      ));
+    }
+    for (let i = supersessions.length - 1; i >= 0; i -= 1) {
+      if (unwitnessed.has(supersessions[i].supersedingId)) supersessions.splice(i, 1);
+    }
+  }
 
   if (governed && options.deterministicIds) {
     for (const vertex of admittedVertices) {
@@ -307,9 +379,10 @@ export function runGate(
         resolvedIds.add(vertex.id);
         continue;
       }
-      const declared = contract.vertexSpecs.get(vertex.label)?.properties ?? new Set<string>();
-      const existingKey = keyText(pick(existing.properties, declared));
-      const candidateKey = keyText(vertex.properties);
+      const spec = contract.vertexSpecs.get(vertex.label);
+      const declared = spec?.properties ?? new Set<string>();
+      const existingKey = keyText(pick(existing.properties, declared), spec);
+      const candidateKey = keyText(vertex.properties, spec);
       if (!existingKey || !candidateKey || sameConceptName(existingKey, candidateKey)) {
         resolvedIds.add(vertex.id);
       } else {
@@ -322,14 +395,19 @@ export function runGate(
     }
   }
 
-  let delta: GraphDelta = ungrounded.size > 0
-    ? {
-        // Only when the spec's soft provenance rule is escalated to hard: the
-        // ungrounded fact and anything hanging off it leave with it.
-        vertices: admittedVertices.filter((vertex) => !ungrounded.has(vertex.id)),
-        edges: admittedEdges.filter((edge) => !ungrounded.has(edge.out) && !ungrounded.has(edge.in))
-      }
-    : { vertices: admittedVertices, edges: admittedEdges };
+  // An ungrounded fact leaves with anything hanging off it (hard escalation
+  // only). An unwitnessed re-assertion leaves alone: its edges stay, because the
+  // fact it names is already in the graph.
+  let delta: GraphDelta = {
+    vertices: admittedVertices.filter(
+      (vertex) => !ungrounded.has(vertex.id) && !unwitnessed.has(vertex.id) && !remembered.has(vertex.id)
+    ),
+    edges: admittedEdges.filter(
+      (edge) =>
+        !ungrounded.has(edge.out) && !ungrounded.has(edge.in) &&
+        !remembered.has(edge.out) && !remembered.has(edge.in)
+    )
+  };
   if (governed && options.deterministicIds) delta = applyDeterministicIds(delta, contract, supersessions, resolvedIds);
   for (const supersession of supersessions) {
     delta.edges.push({
@@ -345,25 +423,235 @@ export function runGate(
 }
 
 /**
- * The property that names a knowledge vertex, in priority order. Shared by
- * resolution here and by human-readable rendering in the evaluation harness.
+ * The property that names a vertex — derived from the schema, never listed here.
+ *
+ * Every label declares its naming property FIRST, and almost always as required:
+ * ExpertRole.title, HospitalityBusiness.name, OperatingTenure.duration,
+ * TimingRule.ruleText, ContextualConstraint.constraintType. Declaration order in
+ * the schema therefore *is* the priority order, and any hand-written ranking can
+ * only drift away from it.
+ *
+ * The list this replaced did exactly that, in two ways. It ranked `description`
+ * above `duration`, so an OperatingTenure holding {duration: "10 years"} was
+ * named by its padding description instead — displayed on the node, used as the
+ * identity-resolution key, and shown to the extractor in KNOWN ENTITIES — which
+ * is how a node meaning "10 years" came to read "general manager for a large
+ * hotel chain" and looked like a duplicate of the ExpertRole beside it. It also
+ * ranked `signalText`, which no label in the schema declares at all.
+ *
+ * Shared by resolution here, by the graph view, and by human-readable rendering
+ * in the evaluation harness, so all three name a vertex identically.
  */
-export const KEY_TEXT_PROPERTIES = [
-  "name", "title", "ruleText", "heuristic", "standardText", "description", "duration", "signalText"
-] as const;
-
-export function keyText(properties: Record<string, JsonValue>): string {
-  for (const key of KEY_TEXT_PROPERTIES) {
-    const value = properties[key];
-    if (typeof value === "string" && value.trim()) return value;
+export function keyText(properties: Record<string, JsonValue>, spec?: VertexSpec): string {
+  if (spec) {
+    for (const [key, type] of spec.propertyTypes) {
+      if (type !== "string") continue;
+      const value = properties[key];
+      if (typeof value === "string" && value.trim()) return value;
+    }
   }
-  // Labels whose naming property is not in the preferred list (constraintType,
-  // standardTime, ...) fall back to the first non-empty string property, so
-  // resolution and display are never blind to a vertex that has any text at all.
+  // Without a spec (or for a vertex carrying only undeclared text) fall back to
+  // any non-empty string, so naming is never blind to a vertex that has content.
   for (const value of Object.values(properties)) {
     if (typeof value === "string" && value.trim()) return value;
   }
   return "";
+}
+
+/**
+ * HR027: an optional free-text property must say something the delta does not
+ * already say.
+ *
+ * The extractor fills every optional property it can, and the cheapest way to
+ * fill a free-text one is to paraphrase the rest of the utterance. The live
+ * trial produced OperatingTenure {duration: "10 years", description: "general
+ * manager for a large hotel chain"} — a description that restated the two OTHER
+ * vertices in the same delta and said nothing whatever about the tenure. Under
+ * the old naming list it was also what got rendered on the node, so a fact
+ * meaning "10 years" displayed as a near-copy of the ExpertRole beside it and
+ * read as a duplicate.
+ *
+ * Two deterministic shapes of emptiness, and only these two:
+ *
+ *   1. SELF-DUPLICATE — the property's tokens are exactly the vertex's own name
+ *      ({description: "general manager"} on ExpertRole{title: "General Manager"}).
+ *      It restates the identity under a second key.
+ *   2. FOREIGN RESTATEMENT — the property shares NO token with its own vertex's
+ *      name and is wholly contained in the names of the OTHER facts in the delta.
+ *      It is about other entities, not this one. This is the OperatingTenure
+ *      case: nothing of "10 years" in it, all of the role and the business.
+ *
+ * Requiring zero overlap with the vertex's own name in case 2 is what keeps the
+ * rule off typed categorical slots. HospitalityBusiness{name: "Large Hotel
+ * Chain", businessType: "hotel chain", scale: "large"} has both narrower
+ * properties fully covered by its own name — a first cut stripped them and lost
+ * real structure. A property that talks about its own vertex is never padding,
+ * however much it echoes the name.
+ *
+ * Scoped to the delta rather than the whole graph on purpose: late in a session
+ * almost every word appears somewhere, and a graph-wide vocabulary would start
+ * stripping real content.
+ *
+ * Two further guards make the rule unable to damage a fact: the naming property
+ * is never a candidate (it IS the vertex's identity), and a strip that would
+ * leave the vertex with no text at all is refused — otherwise this could
+ * manufacture exactly the contentless vertex HR001 exists to reject.
+ */
+function stripRestatedProperties(
+  admitted: GraphVertex[],
+  contract: GateContract,
+  findings: GateFinding[],
+  options: GateOptions
+): void {
+  const knowledge = admitted.filter((vertex) => contract.knowledgeLabels.has(vertex.label));
+  if (knowledge.length === 0) return;
+
+  const nameTokens = (vertex: GraphVertex) =>
+    conceptTokens(normalizeText(keyText(vertex.properties, contract.vertexSpecs.get(vertex.label))));
+
+  for (const vertex of knowledge) {
+    const spec = contract.vertexSpecs.get(vertex.label);
+    if (!spec) continue;
+    // The naming property is whichever declared string property keyText settled
+    // on for THIS vertex, so an absent first choice does not expose the second.
+    const namingValue = keyText(vertex.properties, spec);
+
+    const ownTokens = nameTokens(vertex);
+    const foreignTokens = new Set<string>();
+    for (const other of knowledge) {
+      if (other.id === vertex.id) continue;
+      for (const token of nameTokens(other)) foreignTokens.add(token);
+    }
+
+    for (const key of Object.keys(vertex.properties)) {
+      if (spec.requiredProperties.has(key)) continue;
+      if (spec.propertyTypes.get(key) !== "string") continue;
+      const value = vertex.properties[key];
+      if (typeof value !== "string" || !value.trim()) continue;
+      if (value === namingValue) continue;
+      const tokens = conceptTokens(normalizeText(value));
+      if (tokens.size === 0) continue;
+
+      const selfDuplicate =
+        tokens.size === ownTokens.size && [...tokens].every((token) => ownTokens.has(token));
+      const foreignRestatement =
+        !selfDuplicate &&
+        ![...tokens].some((token) => ownTokens.has(token)) &&
+        [...tokens].every((token) => foreignTokens.has(token));
+      if (!selfDuplicate && !foreignRestatement) continue;
+      const survivingText = Object.entries(vertex.properties).filter(
+        ([otherKey, otherValue]) =>
+          otherKey !== key && typeof otherValue === "string" && otherValue.trim()
+      );
+      if (survivingText.length === 0) continue;
+      delete vertex.properties[key];
+      findings.push(finding(
+        "HR027",
+        severityOf(contract, "HR027", "advisory", options),
+        `${vertex.id}.${key} restates facts already in this delta ("${value.slice(0, 48)}"); dropped as padding`,
+        vertex.id,
+        "repaired"
+      ));
+    }
+  }
+}
+
+/**
+ * HR029: a property value carried over from an earlier turn is not extraction.
+ *
+ * On a turn where the expert only asked that the interview questions be kept
+ * short, the extractor emitted a CheckInPolicy whose earlyArrivalHandling read
+ * "three rooms ready by eleven" — verbatim from two turns earlier. Because
+ * CheckInPolicy is a session singleton, that re-emission SUPERSEDED the real
+ * policy, so an utterance about interview pacing silently replaced a captured
+ * fact. HR028 could not catch it: the content hash differed, so it was not a
+ * re-assertion of a stored vertex but a new one built from memory.
+ *
+ * The test separates remembering from paraphrasing, which is the only reason it
+ * is safe. A value is remembered when its content tokens appear WHOLLY inside
+ * some earlier utterance and share nothing with the current one — the signature
+ * of copying. A genuine paraphrase of the current turn ("tired arrival" for
+ * "dragging a big case slowly ... has had a bad journey") is not wholly present
+ * in any earlier utterance, so it is untouched, and a fact the expert actually
+ * repeats in their own words this turn overlaps the current utterance and is
+ * likewise untouched.
+ *
+ * A fact whose text is ENTIRELY remembered is not a fact this turn produced, and
+ * the whole vertex goes; the logistics turn above emitted nothing else, so it
+ * now yields nothing at all. A fact with some remembered fields and some fresh
+ * ones keeps the fresh ones and loses only what was copied.
+ */
+function stripRememberedProperties(
+  admitted: GraphVertex[],
+  contract: GateContract,
+  findings: GateFinding[],
+  options: GateOptions
+): Set<string> {
+  const remembered = new Set<string>();
+  const prior = options.evidenceContext?.priorUtterances ?? [];
+  const current = options.evidenceContext?.utterance;
+  if (prior.length === 0 || !current) return remembered;
+
+  const currentTokens = conceptTokens(normalizeText(current));
+  const priorTokenSets = prior.map((text) => conceptTokens(normalizeText(text)));
+  const severity = severityOf(contract, "HR029", "soft", options);
+
+  for (const vertex of admitted) {
+    if (!contract.knowledgeLabels.has(vertex.label)) continue;
+    const spec = contract.vertexSpecs.get(vertex.label);
+    if (!spec) continue;
+
+    const textKeys: string[] = [];
+    const copiedKeys: string[] = [];
+    for (const key of Object.keys(vertex.properties)) {
+      if (spec.propertyTypes.get(key) !== "string") continue;
+      const value = vertex.properties[key];
+      if (typeof value !== "string" || !value.trim()) continue;
+      textKeys.push(key);
+      const tokens = conceptTokens(normalizeText(value));
+      if (tokens.size === 0) continue;
+      if ([...tokens].some((token) => currentTokens.has(token))) continue;
+      if (priorTokenSets.some((earlier) => [...tokens].every((token) => earlier.has(token)))) {
+        copiedKeys.push(key);
+      }
+    }
+    if (copiedKeys.length === 0) continue;
+
+    if (copiedKeys.length === textKeys.length) {
+      remembered.add(vertex.id);
+      findings.push(finding(
+        "HR029",
+        severity,
+        `${vertex.id} is built entirely from an earlier turn ("${String(vertex.properties[textKeys[0]]).slice(0, 48)}") and this utterance states none of it; dropped`,
+        vertex.id,
+        "dropped"
+      ));
+      continue;
+    }
+    for (const key of copiedKeys) {
+      // A required field stays: dropping it would take the whole fact with it
+      // under HR001, and losing a real fact is worse than an over-copied field.
+      if (spec.requiredProperties.has(key)) continue;
+      const value = String(vertex.properties[key]);
+      delete vertex.properties[key];
+      findings.push(finding(
+        "HR029",
+        severity,
+        `${vertex.id}.${key} is remembered from an earlier turn ("${value.slice(0, 48)}") and is absent from this utterance; dropped`,
+        vertex.id,
+        "repaired"
+      ));
+    }
+  }
+  return remembered;
+}
+
+/** Name a vertex under a contract: the common case, with the spec looked up. */
+export function vertexKeyText(
+  vertex: { label: string; properties: Record<string, JsonValue> },
+  contract: GateContract
+): string {
+  return keyText(vertex.properties, contract.vertexSpecs.get(vertex.label));
 }
 
 const RESOLUTION_STOPWORDS = new Set([
@@ -476,7 +764,7 @@ function resolveEntities(
   for (const vertex of Object.values(graph.vertices)) {
     // A superseded fact is not a merge target; matching it would resurrect it.
     if (!contract.knowledgeLabels.has(vertex.label) || superseded.has(vertex.id)) continue;
-    addAnchor(vertex.label, vertex.id, keyText(vertex.properties));
+    addAnchor(vertex.label, vertex.id, keyText(vertex.properties, contract.vertexSpecs.get(vertex.label)));
   }
 
   const rewrites = new Map<string, string>();
@@ -485,8 +773,12 @@ function resolveEntities(
     // Key on the properties that will actually be admitted. Resolution once keyed
     // on a raw undeclared `name` that pick() then discarded, so an exact-name twin
     // slipped through (the live session's duplicate "demographic" constraint).
-    const declaredProps = contract.vertexSpecs.get(candidate.label)?.properties;
-    const text = keyText(declaredProps ? pick(candidate.properties, declaredProps) : candidate.properties);
+    const candidateSpec = contract.vertexSpecs.get(candidate.label);
+    const declaredProps = candidateSpec?.properties;
+    const text = keyText(
+      declaredProps ? pick(candidate.properties, declaredProps) : candidate.properties,
+      candidateSpec
+    );
     const normalized = normalizeText(text);
     if (!normalized) continue;
     const tokens = conceptTokens(normalized);
@@ -836,17 +1128,56 @@ function checkProvenanceAttachment(
       findings.push(finding("HR007", severityOf(contract, "HR007", "soft", options), `${vertex.id} uses ${attached.label}, expected ${expected}`, vertex.id, "flagged"));
     }
   }
-  return unprovenanced === "hard" ? ungrounded : new Set<string>();
+  // Always the full set. Whether an ungrounded fact is DROPPED depends on the
+  // spec's severity and is decided by the caller; HR028 needs to know which
+  // facts are ungrounded either way, and returning an empty set under the
+  // default soft severity left it unable to fire at all.
+  return ungrounded;
 }
 
+/**
+ * What to tell the extractor after a rejection.
+ *
+ * The blanket "do not add any fact that was not in your previous attempt" guard
+ * exists to stop a retry from inventing claims to satisfy the gate. But a
+ * dangling edge (HR005) has exactly two legal repairs and one of them IS to emit
+ * the missing endpoint — so on those turns the guard forbade the only correct
+ * fix and contradicted the sentence before it. A trial turn where the expert
+ * read two guest types off one signal emitted both `signalIndicates` edges and
+ * neither GuestPersona; the model, told both to complete its endpoints and to
+ * add nothing, dropped the relationships instead. Both signals ended up isolated
+ * and both personas were lost.
+ *
+ * Naming the missing endpoint as a sanctioned repair keeps the anti-invention
+ * guard everywhere it belongs and lifts it exactly where it was wrong.
+ */
 function buildRetryFeedback(findings: GateFinding[], contract: GateContract): string | null {
   const hard = findings.filter((item) => item.severity === "hard" && item.action === "dropped");
   if (hard.length === 0) return null;
   const lines = hard.map((item) => `${item.ruleId}: ${item.message}`);
-  const guidance = contract.governed
-    ? "Re-emit the complete corrected delta. Every edge endpoint must be a vertex you emit in this same delta or one already in the graph. Attach evidence to each knowledge vertex with its inline evidence field, quoting the expert's own words. Do NOT add any fact that was not in your previous attempt: a correction fixes what was rejected, it never introduces new claims. Drop anything you cannot support with the expert's words rather than repairing it with invented evidence."
-    : "Re-emit the complete corrected delta using only schema labels and edge directions. Do not add facts that were not in your previous attempt.";
-  return `${lines.join("\n")}\n\n${guidance}`;
+  if (!contract.governed) {
+    return `${lines.join("\n")}\n\nRe-emit the complete corrected delta using only schema labels and edge directions. Do not add facts that were not in your previous attempt.`;
+  }
+
+  const guidance = [
+    "Re-emit the complete corrected delta. Attach evidence to each knowledge vertex with its inline evidence field, quoting the expert's own words."
+  ];
+  if (hard.some((item) => item.ruleId === "HR005")) {
+    guidance.push(
+      "An edge was dropped because one of its endpoints does not exist. Each such edge has exactly two valid repairs, and you must pick one: (a) EMIT the missing endpoint as a full knowledge vertex with its own inline evidence — if the expert did describe that concept, this is the CORRECT repair and does not count as introducing a new claim; or (b) DROP that edge entirely. Renaming the endpoint id is never a repair."
+    );
+    guidance.push(
+      "Apart from endpoints you are completing this way, do not add any fact that was not in your previous attempt."
+    );
+  } else {
+    guidance.push(
+      "Every edge endpoint must be a vertex you emit in this same delta or one already in the graph. Do NOT add any fact that was not in your previous attempt: a correction fixes what was rejected, it never introduces new claims."
+    );
+  }
+  guidance.push(
+    "Drop anything you cannot support with the expert's words rather than repairing it with invented evidence."
+  );
+  return `${lines.join("\n")}\n\n${guidance.join(" ")}`;
 }
 
 function endpointsConform(contract: GateContract, edgeLabel: string, outLabel: string, inLabel: string): boolean {

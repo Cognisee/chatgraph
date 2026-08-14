@@ -18,9 +18,11 @@
 import OpenAI from "openai";
 import { gateContract } from "@/lib/gate/contract";
 import { runGate, type GateFinding } from "@/lib/gate/gate";
-import { extractionToolSchema, knownEntitiesSummary, provenanceInstructions, schemaReference } from "@/lib/gate/prompt";
+import { extractionToolSchema, isolationFeedback, knownEntitiesSummary, provenanceInstructions, schemaReference } from "@/lib/gate/prompt";
 import { getDomain } from "@/lib/domains";
 import { isFillerTurn, isFragmentTurn } from "@/lib/filler";
+import { graphQuality } from "@/lib/graph-quality";
+import { mergeDelta } from "@/lib/schema";
 import type { ChatRequest, GateAttemptReport, GraphDelta, GraphState, TurnGateReport } from "@/lib/types";
 
 const DEFAULT_EXTRACTOR_MODEL = "gpt-4o-mini";
@@ -70,6 +72,7 @@ export async function extractGovernedDelta(
   let best: { delta: GraphDelta; warnings: string[]; score: number; attempt: number } | null = null;
   let feedback = "";
   let lastRetryFeedback = "";
+  let isolationRetried = false;
   const attempts: GateAttemptReport[] = [];
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
@@ -90,7 +93,16 @@ export async function extractGovernedDelta(
 
     const merged = withScaffold(raw, scaffold);
     const result = runGate(merged, body.graph, domainId, {
-      evidenceContext: { sourceEpisode: scaffold.episodeId, speaker: "expert", utterance: latestText },
+      evidenceContext: {
+        sourceEpisode: scaffold.episodeId,
+        speaker: "expert",
+        utterance: latestText,
+        // Everything the expert said before now, so HR029 can tell a fact
+        // extracted from this turn from one copied out of an earlier one.
+        priorUtterances: body.messages
+          .filter((message) => message.role === "user" && message.content !== latestText)
+          .map((message) => message.content)
+      },
       // The deployed configuration is the full gate.
       deterministicIds: true,
       temporalContradictions: true,
@@ -103,10 +115,28 @@ export async function extractGovernedDelta(
     const evidenceGaps = result.findings.filter(
       (finding) => finding.severity === "soft" && finding.ruleId === "HR006"
     ).length;
+    // ...and a fact nothing connects to is worth less than one that hangs off
+    // the graph. Counting facts alone let the gate choose a WORSE graph: on a
+    // turn where the expert read two guest types off one signal, the attempt
+    // that emitted both personas and both relationships scored below the attempt
+    // that emitted neither, because completing the endpoints cost one evidence
+    // flag. It kept the version with two stranded signals. Isolation is measured
+    // against the merged graph, so connecting a previously stranded fact counts
+    // in an attempt's favour too.
+    const deltaIds = new Set(result.delta.vertices.map((vertex) => vertex.id));
+    const strandedFacts = graphQuality(mergeDelta(body.graph, result.delta), domainId).isolated;
+    const isolated = strandedFacts.length;
+    // Only facts THIS delta introduced are worth a retry; an older one the
+    // utterance never mentions will not connect however often it is asked for.
+    const strandedHere = strandedFacts.filter((fact) => deltaIds.has(fact.id));
     const candidate = {
       delta: result.delta,
       warnings: warningsFrom(result.findings),
-      score: result.delta.vertices.length + result.delta.edges.length - 10 * evidenceGaps,
+      score:
+        result.delta.vertices.length +
+        result.delta.edges.length -
+        10 * evidenceGaps -
+        4 * isolated,
       attempt
     };
     if (!best || candidate.score > best.score) best = candidate;
@@ -140,6 +170,19 @@ export async function extractGovernedDelta(
         `to every knowledge vertex and every knowledge-to-knowledge edge.`;
       report.retryFeedback = feedback;
       continue;
+    }
+    // An isolated fact raises no hard finding, so nothing used to ask for it to
+    // be connected. One retry, naming the relations the schema actually offers
+    // for what is already in the graph; the unattached run stays `best`, so a
+    // refusal to invent a relationship costs nothing.
+    if (strandedHere.length > 0 && !isolationRetried && attempt < MAX_ATTEMPTS) {
+      const hint = isolationFeedback(domainId, mergeDelta(body.graph, result.delta), strandedHere);
+      if (hint) {
+        isolationRetried = true;
+        feedback = hint;
+        report.retryFeedback = hint;
+        continue;
+      }
     }
     break;
   }

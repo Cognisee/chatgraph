@@ -1,7 +1,8 @@
 import { getDomain } from "./domains";
-import { gateContract } from "./gate/contract";
-import { keyText, SUPERSEDED_BY } from "./gate/gate";
+import { gateContract, type GateContract } from "./gate/contract";
+import { vertexKeyText, SUPERSEDED_BY } from "./gate/gate";
 import { deriveAuditInput } from "./audit";
+import { graphQuality } from "./graph-quality";
 import type { ChatSession, GateAttemptReport, GraphVertex, JsonValue, TurnRecord } from "./types";
 
 /**
@@ -147,14 +148,14 @@ export function buildSessionExport(session: ChatSession) {
         direction: edge.out === vertex.id ? "out" : "in",
         relation: edge.label,
         otherId: edge.out === vertex.id ? edge.in : edge.out,
-        otherName: nameOf(session.graph.vertices[edge.out === vertex.id ? edge.in : edge.out]),
+        otherName: nameOf(session.graph.vertices[edge.out === vertex.id ? edge.in : edge.out], contract),
         traceText: stringOrNull(edge.properties?.traceText),
         confidence: stringOrNull(edge.properties?.confidence)
       }));
     return {
       id: vertex.id,
       label: vertex.label,
-      name: nameOf(vertex),
+      name: nameOf(vertex, contract),
       properties: vertex.properties,
       superseded: superseded.has(vertex.id),
       evidence: evidence
@@ -168,14 +169,6 @@ export function buildSessionExport(session: ChatSession) {
       relations
     };
   });
-
-  const semanticEdges = edges.filter(
-    (edge) =>
-      !contract.provenanceEdgeLabels.has(edge.label) &&
-      edge.label !== SUPERSEDED_BY &&
-      isKnowledge(session.graph.vertices[edge.out]) &&
-      isKnowledge(session.graph.vertices[edge.in])
-  );
 
   const turnRecords = session.turnRecords ?? [];
 
@@ -230,11 +223,11 @@ export function buildSessionExport(session: ChatSession) {
       recordedTurns: turnRecords.length,
       vertices: vertices.length,
       edges: edges.length,
-      knowledgeVertices: knowledge.length,
       groundedKnowledgeVertices: knowledge.filter((item) => item.evidence?.traceText).length,
-      semanticEdges: semanticEdges.length,
-      groundedSemanticEdges: semanticEdges.filter((edge) => typeof edge.properties?.traceText === "string").length,
-      supersededFacts: superseded.size
+      // Fact counts, connectivity and per-fact quality all come from the shared
+      // reporter, so this bundle and its audit sibling can no longer disagree
+      // about the same graph.
+      ...graphQuality(session.graph, session.domainId)
     }
   };
 }
@@ -243,9 +236,9 @@ function structuralLabel(label: string): boolean {
   return ["Person", "KnowledgeSession", "SessionSection", "TranscriptEpisode", "ProvenanceEvidence"].includes(label);
 }
 
-function nameOf(vertex: GraphVertex | undefined): string {
+function nameOf(vertex: GraphVertex | undefined, contract: GateContract): string {
   if (!vertex) return "";
-  return keyText(vertex.properties) || vertex.label;
+  return vertexKeyText(vertex, contract) || vertex.label;
 }
 
 function stringOrNull(value: JsonValue | undefined): string | null {
