@@ -147,7 +147,7 @@ function assertionOnlyProperties(contract: GateContract): string {
     }
   }
   if (names.size === 0) return "";
-  return `ASSERTION-ONLY properties — set these ONLY when the expert explicitly states that judgment in this utterance, otherwise OMIT the property entirely (never guess a boolean or a number): ${[...names].sort().join(", ")}.`;
+  return `ASSERTION-ONLY properties — set these ONLY when the expert explicitly states that judgment in this utterance, otherwise OMIT the property entirely (never guess a boolean or a number): ${[...names].sort().join(", ")}. When the expert DOES state one plainly, capture it — "I never charge for early check-in" IS an explicit earlyCheckInFee: false, and omitting it loses the fact.`;
 }
 
 const SUMMARY_MAX_VERTICES = 80;

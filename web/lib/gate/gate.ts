@@ -226,11 +226,43 @@ export function runGate(
   const admittedEdges: GraphEdge[] = [];
   const seenEdgeIds = new Set<string>();
   const deltaVertexIds = new Set(candidates.map((candidate) => candidate.id));
-  for (const item of [...parsedEdges, ...materialized.edges]) {
+
+  // Provenance edges are the gate's to author, exactly as evidence vertices are.
+  // An extractor-emitted supportedBy necessarily points at an evidence id the
+  // gate ignored, so it can only dangle — and as a hard HR005 it burned a retry
+  // asking the model to "emit the missing endpoint", which is the one repair
+  // HR006 forbids. Trial turns spent two of three attempts in that loop.
+  const extractorEdges = governed
+    ? parsedEdges.filter((item) => {
+        if (!contract.provenanceEdgeLabels.has(item.label)) return true;
+        findings.push(finding("HR006", "advisory", `ignored extractor-authored ${item.label} edge; provenance is attached from the inline evidence field`, item.id || null, "dropped"));
+        return false;
+      })
+    : parsedEdges;
+
+  for (const item of [...extractorEdges, ...materialized.edges]) {
     const spec = contract.edgeSpecs.get(item.label);
     if (!spec) {
       findings.push(finding("HR003", severityOf(contract, "HR003", "hard", options), `unknown edge label ${item.label}`, item.id || null, "dropped"));
       continue;
+    }
+    // A malformed endpoint id with an unambiguous referent is repaired rather
+    // than dropped: "guest-persona:tired-arrival" for guestpersona:<hash>, or
+    // "timingrule:undefined" when exactly one TimingRule exists. Repair demands
+    // a unique match, so a guess is never possible.
+    if (governed && !labels.has(item.out)) {
+      const repaired = repairEndpointId(item.out, labels, graph, contract);
+      if (repaired) {
+        findings.push(finding("HR005", "advisory", `repaired endpoint ${item.out} -> ${repaired}`, item.id || null, "repaired"));
+        item.out = repaired;
+      }
+    }
+    if (governed && !labels.has(item.in)) {
+      const repaired = repairEndpointId(item.in, labels, graph, contract);
+      if (repaired) {
+        findings.push(finding("HR005", "advisory", `repaired endpoint ${item.in} -> ${repaired}`, item.id || null, "repaired"));
+        item.in = repaired;
+      }
     }
     if (!labels.has(item.out) || !labels.has(item.in)) {
       findings.push(finding("HR005", severityOf(contract, "HR005", "hard", options), `dangling ${item.label}: ${labels.has(item.out) ? item.in : item.out} is not in this delta or the graph`, item.id || null, "dropped"));
@@ -320,10 +352,34 @@ export function runGate(
   // it. Nothing is lost by refusing this: the fact is already in the graph, and
   // edges may still reference it, because HR005 resolves endpoints against the
   // graph as well as the delta.
+  // What "witnessed by this turn" actually means: the CANDIDATE carried inline
+  // evidence whose trace is a valid span of the current utterance. It must be
+  // judged from the candidate, not from whether a provenance edge was
+  // materialized this turn — first-witness-wins deliberately declines to
+  // materialize for an already-grounded fact, and reading that as "unwitnessed"
+  // made HR028 block legitimate corrections: the expert said "it's three rooms
+  // now", the extractor correctly reused the stored id with a fresh quote, and
+  // the gate dropped the correction three attempts in a row. (An `inferred`
+  // trace is intentionally not a witness here: cross-turn synthesis may add new
+  // facts, but rewriting a stored one demands direct words.)
+  const witnessedIds = new Set<string>();
+  if (governed && options.evidenceContext?.utterance) {
+    for (const candidate of candidates) {
+      if (!candidate.evidence) continue;
+      const trace = asString(candidate.evidence.traceText);
+      if (trace && !traceSpecificity(trace, options.evidenceContext.utterance)) {
+        witnessedIds.add(candidate.id);
+      }
+    }
+  }
+
   const unwitnessed = new Set<string>();
   if (governed) {
     for (const vertex of admittedVertices) {
-      if (!ungroundedAll.has(vertex.id)) continue;
+      // Knowledge only: the scaffold re-emits sections and episodes every turn,
+      // and infrastructure carries no inline evidence to witness it with.
+      if (!contract.knowledgeLabels.has(vertex.label)) continue;
+      if (witnessedIds.has(vertex.id)) continue;
       const stored = graph.vertices[vertex.id];
       if (stored && stored.label === vertex.label) {
         unwitnessed.add(vertex.id);
@@ -357,6 +413,9 @@ export function runGate(
     for (let i = supersessions.length - 1; i >= 0; i -= 1) {
       if (unwitnessed.has(supersessions[i].supersedingId)) supersessions.splice(i, 1);
     }
+    // Only supersessions that survived every witness check inherit: a pruned
+    // one keeps the stored vertex live, so there is nothing to carry over.
+    inheritSupersededProperties(admittedVertices, supersessions, graph, contract, findings);
   }
 
   if (governed && options.deterministicIds) {
@@ -646,6 +705,106 @@ function stripRememberedProperties(
   return remembered;
 }
 
+/**
+ * Resolve a malformed edge-endpoint id to the vertex it plainly means, or null.
+ *
+ * The extractor loses real relationships to id spelling: a trial emitted
+ * `experienceDesignedFor -> guest-persona:tired-arrival` (hyphenated label
+ * prefix; the actual id was guestpersona:<hash>) and `governs ->
+ * timingrule:undefined` (an invented placeholder while exactly one TimingRule
+ * existed). Both edges dropped as dangling, and the facts they should have
+ * anchored were left isolated.
+ *
+ * Three deterministic strategies, each requiring a UNIQUE match so a guess is
+ * structurally impossible:
+ *   1. alphanumeric-folded id equality — catches punctuation variants of an id
+ *      that exists in the delta or graph;
+ *   2. label prefix + name: the prefix names a label, the suffix (hyphens as
+ *      spaces) equals some vertex's key text under that label;
+ *   3. label prefix alone, when exactly one live vertex of that label exists.
+ */
+function repairEndpointId(
+  id: string,
+  labels: Map<string, string>,
+  graph: GraphState,
+  contract: GateContract
+): string | null {
+  const fold = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const folded = fold(id);
+  if (!folded) return null;
+
+  const idMatches: string[] = [];
+  for (const known of labels.keys()) {
+    if (fold(known) === folded) idMatches.push(known);
+  }
+  if (idMatches.length === 1) return idMatches[0];
+  if (idMatches.length > 1) return null;
+
+  const prefix = fold(id.split(":")[0] ?? "");
+  const label = [...contract.vertexSpecs.keys()].find((name) => fold(name) === prefix);
+  if (!label || !contract.knowledgeLabels.has(label)) return null;
+
+  const ofLabel = [...labels.entries()].filter(([, vertexLabel]) => vertexLabel === label);
+  const suffix = normalizeText((id.split(":").slice(1).join(" ") ?? "").replace(/[-_]/g, " "));
+  if (suffix) {
+    const nameMatches = ofLabel.filter(([vertexId]) => {
+      const vertex = graph.vertices[vertexId];
+      if (!vertex) return false;
+      return normalizeText(keyText(vertex.properties, contract.vertexSpecs.get(label))) === suffix;
+    });
+    if (nameMatches.length === 1) return nameMatches[0][0];
+  }
+  if (ofLabel.length === 1) return ofLabel[0][0];
+  return null;
+}
+
+/**
+ * Supersession inheritance: a correction changes what it corrects and nothing
+ * else.
+ *
+ * When the expert amended one detail of the check-in policy ("it's three rooms
+ * now"), the extractor rebuilt the whole singleton and guessed the fields the
+ * utterance never mentioned — writing standardTime "11:00" because "eleven"
+ * appeared in the sentence, when eleven is the rooms-ready hour and the real
+ * standard time (15:00) was sitting on the superseded vertex. Supersession then
+ * retired the correct policy in favour of the corrupted rebuild.
+ *
+ * So a superseding vertex now inherits every declared property it does not
+ * itself state from the vertex it replaces (same label only). The extractor is
+ * told to emit only the corrected fields; whatever it omits survives the
+ * correction by construction.
+ */
+function inheritSupersededProperties(
+  admitted: GraphVertex[],
+  supersessions: Supersession[],
+  graph: GraphState,
+  contract: GateContract,
+  findings: GateFinding[]
+): void {
+  for (const supersession of supersessions) {
+    const stored = graph.vertices[supersession.supersededId];
+    const replacement = admitted.find((vertex) => vertex.id === supersession.supersedingId);
+    if (!stored || !replacement || stored.label !== replacement.label) continue;
+    const declared = contract.vertexSpecs.get(replacement.label)?.properties;
+    if (!declared) continue;
+    const inherited: string[] = [];
+    for (const key of declared) {
+      if (!isBlank(replacement.properties[key])) continue;
+      const previous = stored.properties[key];
+      if (previous === undefined || isBlank(previous)) continue;
+      replacement.properties[key] = previous;
+      inherited.push(key);
+    }
+    if (inherited.length > 0) {
+      findings.push(finding(
+        "HR009", "advisory",
+        `${replacement.id} inherited ${inherited.join(", ")} from superseded ${stored.id}; a correction only changes what it states`,
+        replacement.id, "repaired"
+      ));
+    }
+  }
+}
+
 /** Name a vertex under a contract: the common case, with the spec looked up. */
 export function vertexKeyText(
   vertex: { label: string; properties: Record<string, JsonValue> },
@@ -906,13 +1065,30 @@ function materializeEvidence(
   for (const candidate of candidates) {
     if (!contract.knowledgeLabels.has(candidate.label)) continue;
     if (!candidate.evidence) continue;
-    // First witness wins: a fact that is already grounded in the graph keeps
-    // the provenance that licensed its admission. Re-emitting the fact with a
-    // different quote must not silently replace the original evidence (the
-    // live trial showed exactly that churn via last-write-wins merging).
+    // First witness wins — for a fact whose content is unchanged. A fact that is
+    // already grounded keeps the provenance that licensed its admission, so a
+    // re-emission with a different quote cannot churn the original evidence.
+    //
+    // But a CORRECTION is not a re-emission: when the stored content changed and
+    // the new evidence is a valid span of the current utterance, retaining the
+    // old quote would leave a fact whose provenance supports its previous
+    // content ("two rooms" evidence under a "three rooms" fact). Content change
+    // plus valid witness refreshes the evidence instead.
     if (graph.vertices[`evidence:${candidate.id}`]) {
-      findings.push(finding("HR006", "advisory", `${candidate.id} is already grounded; original provenance retained`, candidate.id, "repaired"));
-      continue;
+      const stored = graph.vertices[candidate.id];
+      const declared = contract.vertexSpecs.get(candidate.label)?.properties ?? new Set<string>();
+      const unchanged =
+        stored &&
+        contentHash(stored.label, pick(stored.properties, declared)) ===
+          contentHash(candidate.label, pick(candidate.properties, declared));
+      const trace = asString(candidate.evidence.traceText);
+      const validWitness =
+        trace.length > 0 && !traceSpecificity(trace, context?.utterance);
+      if (unchanged || !validWitness) {
+        findings.push(finding("HR006", "advisory", `${candidate.id} is already grounded; original provenance retained`, candidate.id, "repaired"));
+        continue;
+      }
+      findings.push(finding("HR006", "advisory", `${candidate.id} content changed with a valid new witness; evidence refreshed`, candidate.id, "repaired"));
     }
     const edgeLabel = contract.provenanceEdgeByLabel.get(candidate.label);
     if (!edgeLabel) {
@@ -1172,6 +1348,11 @@ function buildRetryFeedback(findings: GateFinding[], contract: GateContract): st
   } else {
     guidance.push(
       "Every edge endpoint must be a vertex you emit in this same delta or one already in the graph. Do NOT add any fact that was not in your previous attempt: a correction fixes what was rejected, it never introduces new claims."
+    );
+  }
+  if (hard.some((item) => item.ruleId === "HR012" && item.message.includes("whole utterance"))) {
+    guidance.push(
+      "For evidence rejected as restating the whole utterance: quote the SHORTEST contiguous phrase or clause that supports that specific fact — different facts from the same reply cite different spans, never the full reply."
     );
   }
   guidance.push(
