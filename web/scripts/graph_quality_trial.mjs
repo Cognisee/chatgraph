@@ -78,7 +78,7 @@ const CORPUS = [
   {
     ask: "How do you handle check-in timing?",
     say: "Official check-in is three PM but that's mostly fiction. I keep two rooms cleaned and ready by eleven every single day, because the early arrivals are the ones who are most fragile. I never charge for it.",
-    expect: [["three pm", "3pm", "3 pm"], ["two rooms", "eleven"], ["never charge", "no charge", "free"]],
+    expect: [["three pm", "3pm", "3 pm", "15:00"], ["two rooms", "eleven"], ["never charge", "no charge", "free", "earlyCheckInFee=false", "earlyCheckInFee=no"]],
     note: "policy, deviation from policy, and a fee rule in one breath"
   },
   {
@@ -176,9 +176,18 @@ for (const [index, item] of CORPUS.entries()) {
 const quality = graphQuality(graph, "hospitality");
 
 // Everything the graph now "says", for concept presence checks.
+// Everything the graph "says". Booleans and numbers render as key=value pairs:
+// "I never charge for it" is captured as earlyCheckInFee=false, and a haystack
+// of strings alone reported that capture as a miss.
 const haystack = Object.values(graph.vertices)
   .filter((v) => CONTRACT.knowledgeLabels.has(v.label))
-  .map((v) => normalize(Object.values(v.properties).filter((x) => typeof x === "string").join(" ")))
+  .map((v) =>
+    normalize(
+      Object.entries(v.properties)
+        .map(([k, x]) => (typeof x === "string" ? x : `${k}=${String(x)}`))
+        .join(" ")
+    )
+  )
   .join(" | ");
 
 const captureRows = [];

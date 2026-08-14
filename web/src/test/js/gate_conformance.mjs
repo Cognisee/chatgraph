@@ -1453,6 +1453,174 @@ test("HR029 leaves a paraphrase of the current utterance alone", () => {
   assert.equal(result.findings.filter((f) => f.ruleId === "HR029").length, 0);
 });
 
+// --- endpoint repair, provenance authorship, correction inheritance (iteration 11) ---
+
+test("an extractor-authored provenance edge is ignored, not a dangling hard drop", () => {
+  // The extractor emits its own supportedBy edge to an evidence id the gate
+  // ignores by design; as a hard HR005 it burned retries asking for the one
+  // repair HR006 forbids.
+  const result = runGate(
+    {
+      vertices: [
+        { id: "standard:towel", label: "ServiceStandard",
+          properties: { name: "Hot towel on arrival" },
+          evidence: { traceText: "hand every guest a hot towel", confidence: "high" } }
+      ],
+      edges: [
+        { label: "supportedBy", out: "standard:towel", in: "evidence:standard:towel" }
+      ]
+    },
+    EMPTY_GRAPH, "hospitality",
+    { evidenceContext: { ...CONTEXT, utterance: UTTERANCE } }
+  );
+  assert.equal(
+    result.findings.filter((f) => f.ruleId === "HR005" && f.severity === "hard").length, 0,
+    "no hard dangling finding for the extractor's own provenance edge"
+  );
+  assert.equal(result.retryFeedback, null, "no retry is burned on it");
+  // The gate's own materialized provenance edge is still there.
+  const provenance = result.delta.edges.filter((e) => e.label === "supportedBy");
+  assert.equal(provenance.length, 1, "exactly the gate-authored provenance edge remains");
+});
+
+test("a malformed endpoint id with a unique referent is repaired, not dropped", () => {
+  const graph = graphWith(
+    { id: "guestpersona:8a2b3c4d5e6f7a8b", label: "GuestPersona", properties: { name: "tired arrival" } },
+    { id: "timingrule:1f2e3d4c5b6a7f8e", label: "TimingRule", properties: { ruleText: "two rooms ready by eleven" } }
+  );
+  const result = runGate(
+    {
+      vertices: [
+        { id: "principle:arrival", label: "GuestExperiencePrinciple",
+          properties: { name: "arrival first impression" },
+          evidence: { traceText: "hand every guest a hot towel", confidence: "high" } }
+      ],
+      edges: [
+        // Hyphenated label prefix + name suffix: strategy 2.
+        { label: "experienceDesignedFor", out: "principle:arrival", in: "guest-persona:tired-arrival" },
+        // Invented placeholder while exactly one TimingRule exists: strategy 3.
+        { label: "heuristicExplains", out: "heuristic:none", in: "timingrule:undefined" }
+      ]
+    },
+    graph, "hospitality",
+    { evidenceContext: { ...CONTEXT, utterance: UTTERANCE } }
+  );
+  const designedFor = result.delta.edges.find((e) => e.label === "experienceDesignedFor");
+  assert.ok(designedFor, "the persona edge must survive via repair");
+  assert.equal(designedFor.in, "guestpersona:8a2b3c4d5e6f7a8b");
+  assert.ok(result.findings.some((f) => f.ruleId === "HR005" && f.action === "repaired"));
+  // The heuristic edge still dies: its OUT endpoint is unrepairable, proving
+  // repair never invents a vertex.
+  assert.ok(!result.delta.edges.some((e) => e.label === "heuristicExplains"));
+});
+
+test("endpoint repair refuses an ambiguous referent", () => {
+  const graph = graphWith(
+    { id: "guestsignal:aaaa111122223333", label: "GuestSignal", properties: { name: "slow walk" } },
+    { id: "guestsignal:bbbb444455556666", label: "GuestSignal", properties: { name: "fast walk" } },
+    { id: "guestpersona:cccc777788889999", label: "GuestPersona", properties: { name: "business guest" } }
+  );
+  const result = runGate(
+    {
+      vertices: [],
+      edges: [{ label: "signalIndicates", out: "guestsignal:undefined", in: "guestpersona:cccc777788889999" }]
+    },
+    graph, "hospitality",
+    { evidenceContext: { ...CONTEXT, utterance: UTTERANCE } }
+  );
+  assert.ok(
+    !result.delta.edges.some((e) => e.label === "signalIndicates"),
+    "two GuestSignals exist, so guestsignal:undefined must not resolve to either"
+  );
+});
+
+test("a superseding singleton inherits the fields the correction does not state", () => {
+  // The live failure: "it's three rooms now" rebuilt the whole CheckInPolicy,
+  // guessed standardTime from the wrong number in the sentence, and supersession
+  // retired the correct policy in favour of the corrupted rebuild.
+  const graph = graphWith(
+    { id: "checkinpolicy:stored", label: "CheckInPolicy",
+      properties: { standardTime: "15:00", earlyCheckIn: true, earlyArrivalHandling: "two rooms ready by eleven", rationale: "early guests are fragile" } }
+  );
+  const utterance = "Actually it's three rooms ready by eleven now, we changed it last spring.";
+  const result = runGate(
+    {
+      vertices: [
+        { id: "checkinpolicy:corrected", label: "CheckInPolicy",
+          properties: { earlyArrivalHandling: "three rooms ready by eleven" },
+          evidence: { traceText: "it's three rooms ready by eleven now", confidence: "high" } }
+      ],
+      edges: []
+    },
+    graph, "hospitality",
+    { evidenceContext: { ...CONTEXT, utterance }, deterministicIds: true, temporalContradictions: true }
+  );
+  const replacement = result.delta.vertices.find((v) => v.label === "CheckInPolicy");
+  assert.ok(replacement, "the corrected policy must be admitted");
+  assert.equal(replacement.properties.earlyArrivalHandling, "three rooms ready by eleven", "the corrected field changes");
+  assert.equal(replacement.properties.standardTime, "15:00", "the unstated standard time is inherited, not re-guessed");
+  assert.equal(replacement.properties.earlyCheckIn, true, "unstated booleans are inherited");
+  assert.equal(replacement.properties.rationale, "early guests are fragile", "unstated prose is inherited");
+  assert.ok(result.delta.edges.some((e) => e.label === "supersededBy" && e.out === "checkinpolicy:stored"));
+});
+
+test("a witnessed same-id correction lands, and its evidence refreshes to the new quote", () => {
+  // Regression: the extractor correctly reused the stored id for a correction
+  // with a fresh quote; first-witness-wins declined to materialize the new
+  // evidence, HR028 read that as "unwitnessed" and dropped the correction three
+  // attempts in a row. The graph kept saying "two rooms".
+  const graph = graphWith(
+    { id: "checkinpolicy:stable", label: "CheckInPolicy",
+      properties: { standardTime: "15:00", earlyArrivalHandling: "two rooms ready by eleven" } },
+    { id: "evidence:checkinpolicy:stable", label: "ProvenanceEvidence",
+      properties: { traceText: "I keep two rooms ready by eleven", sourceEpisode: "ep:old", speaker: "expert" } }
+  );
+  const utterance = "Actually it's three rooms ready by eleven now, we changed it last spring.";
+  const result = runGate(
+    {
+      vertices: [
+        { id: "checkinpolicy:stable", label: "CheckInPolicy",
+          properties: { earlyArrivalHandling: "three rooms ready by eleven" },
+          evidence: { traceText: "it's three rooms ready by eleven now", confidence: "high" } }
+      ],
+      edges: []
+    },
+    graph, "hospitality",
+    { evidenceContext: { ...CONTEXT, utterance }, deterministicIds: true, temporalContradictions: true }
+  );
+  const corrected = result.delta.vertices.find((v) => v.id === "checkinpolicy:stable");
+  assert.ok(corrected, "the witnessed correction must be admitted");
+  assert.equal(corrected.properties.earlyArrivalHandling, "three rooms ready by eleven");
+  assert.equal(result.findings.filter((f) => f.ruleId === "HR028").length, 0, "a witnessed correction is not an unwitnessed re-assertion");
+  const refreshed = result.delta.vertices.find((v) => v.id === "evidence:checkinpolicy:stable");
+  assert.ok(refreshed, "evidence must refresh so provenance supports the corrected content");
+  assert.equal(refreshed.properties.traceText, "it's three rooms ready by eleven now");
+});
+
+test("an unchanged re-emission still keeps its original provenance (no churn)", () => {
+  const graph = graphWith(
+    { id: "guestsignal:calm", label: "GuestSignal", properties: { name: "slow luggage drag" } },
+    { id: "evidence:guestsignal:calm", label: "ProvenanceEvidence",
+      properties: { traceText: "the original quote", sourceEpisode: "ep:old", speaker: "expert" } }
+  );
+  const result = runGate(
+    {
+      vertices: [
+        { id: "guestsignal:calm", label: "GuestSignal",
+          properties: { name: "slow luggage drag" },
+          evidence: { traceText: "hand every guest a hot towel", confidence: "high" } }
+      ],
+      edges: []
+    },
+    graph, "hospitality",
+    { evidenceContext: { ...CONTEXT, utterance: UTTERANCE }, deterministicIds: true, temporalContradictions: true }
+  );
+  assert.ok(
+    !result.delta.vertices.some((v) => v.id === "evidence:guestsignal:calm"),
+    "identical content must not churn the evidence, whatever the new quote says"
+  );
+});
+
 // --- report ---------------------------------------------------------------
 
 await Promise.all(pending);
