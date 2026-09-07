@@ -21,6 +21,13 @@ DOMAIN = Domain(
     agent_system_prompt=AGENT_SYSTEM_PROMPT,
     extractor_prompt_intro=EXTRACTOR_PROMPT_INTRO,
     opening_line=OPENING_LINE,
+    # The schema roots at Person, but the subject is a hospitality
+    # operator, not a patient -- without these the medical defaults
+    # would label the root vertex "patient".
+    root_label="Person",
+    root_id="Person:expert",
+    root_properties=(("name", "the expert"),),
+    subject_noun="expert",
     description=(
         "Expert interview capturing hospitality operating knowledge, guest "
         "experience principles, timing policies, service recovery rules, "
