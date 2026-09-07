@@ -45,6 +45,14 @@ projects (Hydra, the Hydra Python dist packages).
   `gremlin-setup.md`). The top-level `README.md` is the entry point.
 - `bin/diagnose.py` — one-shot health check of all external
   dependencies.
+- `web/` — a **separate** Next.js browser prototype, contributed by
+  Yawar Sayeed. It is *not* a client of the Python backend: it
+  reimplements the agent and extractor in TypeScript against the
+  OpenAI Realtime and Anthropic APIs and keeps its graph in browser
+  IndexedDB, talking to no Gremlin Server. The two stacks share only
+  the schema JSON in `src/main/json/`. Keep it that way — new backend
+  work belongs under `src/main/python/`, and `web/` should reach into
+  the Python tree only through committed schema artifacts.
 
 ## Schema: one source of truth
 
