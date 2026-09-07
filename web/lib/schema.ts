@@ -1,29 +1,5 @@
 import type { GraphDelta, GraphEdge, GraphState, GraphVertex, JsonValue } from "./types";
-import { getDomain, type DomainConfig, type DomainSchema } from "./domains";
-
-type SchemaProperty = {
-  key: string;
-  value?: unknown;
-  required?: boolean;
-};
-
-type SchemaVertexEntry = {
-  "@key": string;
-  "@value": {
-    properties?: SchemaProperty[];
-  };
-};
-
-type SchemaEdgeEntry = {
-  "@key": string;
-  "@value": {
-    out?: string;
-    in?: string;
-    outV?: string;
-    inV?: string;
-    properties?: SchemaProperty[];
-  };
-};
+import { entryKey, entryValue, getDomain, type DomainConfig, type DomainSchema } from "./domains";
 
 export type VertexSpec = {
   label: string;
@@ -49,25 +25,33 @@ function schemaRuntime(domain: DomainConfig): SchemaRuntime {
   if (cached) return cached;
   const schema = domain.schema as DomainSchema;
   const vertexSpecs = new Map<string, VertexSpec>(
-    (schema.vertices as SchemaVertexEntry[]).map((entry) => [
-    entry["@key"],
-    {
-      label: entry["@key"],
-      properties: new Set((entry["@value"].properties ?? []).map((prop) => prop.key))
-    }
-    ])
+    schema.vertices.map((entry) => {
+      const label = entryKey(entry);
+      const body = entryValue(entry);
+      return [
+        label,
+        {
+          label,
+          properties: new Set((body?.properties ?? []).map((prop) => prop.key))
+        }
+      ];
+    })
   );
 
   const edgeSpecs = new Map<string, EdgeSpec>(
-    (schema.edges as SchemaEdgeEntry[]).map((entry) => [
-    entry["@key"],
-    {
-      label: entry["@key"],
-      out: entry["@value"].out ?? entry["@value"].outV ?? "",
-      in: entry["@value"].in ?? entry["@value"].inV ?? "",
-      properties: new Set((entry["@value"].properties ?? []).map((prop) => prop.key))
-    }
-    ])
+    schema.edges.map((entry) => {
+      const label = entryKey(entry);
+      const body = entryValue(entry);
+      return [
+        label,
+        {
+          label,
+          out: body?.out ?? body?.outV ?? "",
+          in: body?.in ?? body?.inV ?? "",
+          properties: new Set((body?.properties ?? []).map((prop) => prop.key))
+        }
+      ];
+    })
   );
   const runtime = { vertexSpecs, edgeSpecs };
   runtimeCache.set(domain.id, runtime);
