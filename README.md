@@ -7,10 +7,11 @@ words about some topic in a specified *domain* with an LLM-driven assistant,
 while a second LLM agent extracts a property
 graph of what was said, vertex by vertex and edge by edge, into a live
 graph database that you can watch update during the
-conversation in a tool like [gdotv](https://www.gdotv.com/). The first
-shipped domain (`medical`) is focused on headache
-disorders; the architecture is domain-neutral and a new domain is a
-self-contained subpackage (schema + prompts + opening line).
+conversation in a tool like [gdotv](https://www.gdotv.com/). The
+architecture is domain-neutral: a domain is a self-contained subpackage
+(schema + prompts + opening line), and three ship today — `medical`
+(headache disorders), `aviation` (a pilot's own approach technique),
+and `hospitality` (operator knowledge capture).
 
 ## Status
 
@@ -230,6 +231,16 @@ Currently shipped:
   Covers ICHD-3 classification, attack phases, triggers, alleviating
   factors, red flags, family history, and functional impact. See
   `docs/medical-schema.md` for a written walkthrough of the clinical model.
+- **`aviation`** — interview with a pilot about how they personally fly
+  a specific, demanding approach: site-specific hazards, personal
+  minimums, abort rules, techniques, and the perceptual cues behind
+  them. See `docs/aviation-domain-background.md`. The record is one
+  pilot's practice, not guidance for others.
+- **`hospitality`** — knowledge capture from a hospitality operator:
+  service standards, timing rules, decision rules, operating
+  heuristics, and the evidence behind them. Contributed with the web
+  application; the schema was regenerated through `schema_build.py`
+  to match the current encoding.
 
 The first positional argument to `chatgraph` selects the domain.
 
@@ -379,6 +390,8 @@ chatgraph/
     main/
       json/
         medical.json             # committed schema JSON for the medical domain
+        aviation.json            # ... for the aviation domain
+        hospitality.json         # ... for the hospitality domain
       python/chatgraph/
         domains/
           __init__.py            # Domain dataclass + REGISTRY
@@ -387,6 +400,8 @@ chatgraph/
             schema_build.py      # builds src/main/json/medical.json via chatgraph.schema.pgdsl
             agent_prompt.py      # OPENING_LINE + SYSTEM_PROMPT for the agent
             extractor_prompt.py  # EXTRACTOR_PROMPT_INTRO for the extractor
+          aviation/              # the aviation (backcountry landing) domain
+          hospitality/           # the hospitality knowledge-capture domain
         schema/
           build.py               # CLI dispatcher: chatgraph-build-schema <domain>
           pgdsl.py               # fluent sugar over Hydra's PG DSL + JSON coder
@@ -401,6 +416,11 @@ chatgraph/
           main.py                # Coordinator + CLI; domain positional + --fresh / -v / -vv
     test/python/chatgraph/
       test_extractor_smoke.py    # end-to-end extractor smoke test (costs cents)
+  web/                           # a SEPARATE browser application (see below)
+    app/                         # Next.js routes and API handlers
+    components/GraphView.tsx     # force-directed live graph view
+    lib/                         # TypeScript agent, extractor, schema reader
+    package.json                 # web-only dependencies; not part of the Python build
   pyproject.toml
   .env.example
 ```
@@ -408,6 +428,106 @@ chatgraph/
 The `src/main/python/<package>` and `src/test/python/<package>` layout
 matches the convention used across Hydra-family projects (Hydra, the
 Hydra Python dist packages).
+
+## Two applications in one repository
+
+This repository currently holds **two distinct applications** that share
+a repository and a schema, but not a codebase:
+
+| | Python application | Web application |
+|---|---|---|
+| Location | `src/main/python/`, `bin/`, `config/` | `web/` |
+| Author | Joshua Shinavier | Yawar Sayeed |
+| Interface | terminal, voice-driven | browser, voice + typed |
+| Agent / extractor | Claude, in Python | Claude + OpenAI Realtime, in TypeScript |
+| Schema handling | Hydra (`hydra-kernel`, `hydra-pg`) | contract derived from the same schema JSON |
+| Validation | `hydra.validate.pg` | contract-derived symbolic gate |
+| Graph storage | live TinkerPop Gremlin Server | browser IndexedDB |
+
+The Python application is the primary one: it is where the Hydra work
+lands and what the current demos are built on. The web application is a
+browser prototype whose **user experience** may in time supersede the
+terminal interface.
+
+The important caveat is that `web/` is **not a client of the Python
+backend**. It reimplements the agent, the extractor, and the schema
+reader in TypeScript, and talks to no Gremlin Server. The two
+applications are coupled only through the committed schema JSON in
+`src/main/json/`, which both read. Everything else — prompts, extraction
+logic, validation, persistence — exists twice, in two languages, and
+must be kept in step by hand.
+
+### How this came about
+
+The web application began as a *copy* of this repository (at commit
+`d74eb43`, 2026-06-03) rather than a branch or a fork, so its original
+history did not build on this one. It has since been reconstructed on
+top of the real history: its commits were replayed onto their true fork
+point with their original authorship and dates intact, then rebased
+forward. Yawar's work lives under `web/` and is attributed to him in the
+commit log; the Python tree is unchanged by the import.
+
+Development then continued in a *second* copy, again without shared
+history; that one is the basis of what is here now. Repairs made along
+the way, in follow-up commits: the hospitality schema was regenerated
+through `schema_build.py` (it had been hand-written in the pre-0.17.1
+`@key`/`@value` encoding, which the current runtime cannot read); the
+web app now reads the canonical `medical.json` in place through a
+`@schema/*` alias rather than keeping a copy; and both its schema reader
+and the gate contract accept either encoding.
+
+**What is not here.** The second copy also contained a conference paper
+draft, its LaTeX sources, and the measured ablation results and harness
+behind it (`results/`, `scripts/nesy_results/`). Those were deliberately
+left out of this branch, which carries only code. `npm test` was narrowed
+to match: the stages that read those directories are gone, and what
+remains is the offline suite — a typecheck plus the gate conformance
+checks, which pass here.
+
+```bash
+cd web
+npm install
+npm test        # typecheck + 78 conformance checks, contract drift 0
+```
+
+Node 22.18+ (or 23+) is required; the suite relies on native TypeScript
+stripping. One conformance check ("replay") skips wherever the archived
+ablation rows are absent, including upstream — they quote the expert
+verbatim and are deliberately never committed.
+
+The two trial harnesses are opt-in rather than part of `test`, because
+they call a paid API: `npm run trial:quality` and `npm run trial:product`,
+both needing `OPENAI_API_KEY`.
+
+### Next steps: alignment
+
+The duplication above is a maintenance liability, not a design. The
+options for removing it, roughly in order of increasing ambition:
+
+1. **Share the schema properly.** Partly done — both sides read
+   `src/main/json/`, and the web app now reads `medical.json` in place.
+   `hospitality.json` is still duplicated under `web/`, because the
+   gate's copy has moved ahead: it adds `supersededBy` across all 19
+   knowledge classes, widens `supportedBy` to the 16 classes that use
+   it, and gives several edges multi-label endpoints. Regenerating the
+   root artifact from `schema_build.py` currently yields a schema
+   against which 16 of those 19 classes cannot bind a provenance edge,
+   so the two must be reconciled before either is canonical.
+2. **Adopt Hydra-TypeScript in `web/`.** Hydra publishes TypeScript
+   packages to npm. If they cover the property-graph DSL and the
+   validation surface the Python side depends on, the web application
+   could use the *same* schema and validation primitives instead of
+   reimplementing them — keeping both sides aligned by construction
+   rather than by discipline.
+3. **Make `web/` a thin client.** Expose the Python agent, extractor,
+   validation, and Gremlin persistence over an API, and let the browser
+   supply only the interface. This keeps one implementation of the
+   logic, at the cost of requiring a running backend.
+
+Options 2 and 3 are not mutually exclusive: a thin client still benefits
+from typed schemas on the browser side. The choice turns on whether the
+extraction logic should live in one language or two, and that is worth
+deciding deliberately rather than by accretion.
 
 ## Troubleshooting
 
