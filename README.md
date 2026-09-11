@@ -479,17 +479,25 @@ and the gate contract accept either encoding.
 **What is not here.** The second copy also contained a conference paper
 draft, its LaTeX sources, and the measured ablation results and harness
 behind it (`results/`, `scripts/nesy_results/`). Those were deliberately
-left out of this branch, which carries only code. Consequently `npm test`
-does not run here: its `test:results` and `test:paper` stages read from
-those directories. The gate conformance suite does run, and passes:
+left out of this branch, which carries only code. `npm test` was narrowed
+to match: the stages that read those directories are gone, and what
+remains is the offline suite — a typecheck plus the gate conformance
+checks, which pass here.
 
 ```bash
 cd web
-node --experimental-strip-types --import ./scripts/ts-alias-hooks.mjs \
-  src/test/js/gate_conformance.mjs      # 78 checks, contract drift 0
+npm install
+npm test        # typecheck + 78 conformance checks, contract drift 0
 ```
 
-Node 22.18+ (or 23+) is needed for native TypeScript stripping.
+Node 22.18+ (or 23+) is required; the suite relies on native TypeScript
+stripping. One conformance check ("replay") skips wherever the archived
+ablation rows are absent, including upstream — they quote the expert
+verbatim and are deliberately never committed.
+
+The two trial harnesses are opt-in rather than part of `test`, because
+they call a paid API: `npm run trial:quality` and `npm run trial:product`,
+both needing `OPENAI_API_KEY`.
 
 ### Next steps: alignment
 
