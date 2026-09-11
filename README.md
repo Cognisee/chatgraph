@@ -440,8 +440,8 @@ a repository and a schema, but not a codebase:
 | Author | Joshua Shinavier | Yawar Sayeed |
 | Interface | terminal, voice-driven | browser, voice + typed |
 | Agent / extractor | Claude, in Python | Claude + OpenAI Realtime, in TypeScript |
-| Schema handling | Hydra (`hydra-kernel`, `hydra-pg`) | hand-written TypeScript reader |
-| Validation | `hydra.validate.pg` | none equivalent |
+| Schema handling | Hydra (`hydra-kernel`, `hydra-pg`) | contract derived from the same schema JSON |
+| Validation | `hydra.validate.pg` | contract-derived symbolic gate |
 | Graph storage | live TinkerPop Gremlin Server | browser IndexedDB |
 
 The Python application is the primary one: it is where the Hydra work
@@ -467,20 +467,44 @@ point with their original authorship and dates intact, then rebased
 forward. Yawar's work lives under `web/` and is attributed to him in the
 commit log; the Python tree is unchanged by the import.
 
-Two things were repaired in the process, both in follow-up commits:
-the hospitality schema was regenerated through `schema_build.py` (it had
-been hand-written in the pre-0.17.1 `@key`/`@value` encoding, which the
-current runtime cannot read), and the web app's schema reader was taught
-the current `key`/`value` encoding.
+Development then continued in a *second* copy, again without shared
+history; that one is the basis of what is here now. Repairs made along
+the way, in follow-up commits: the hospitality schema was regenerated
+through `schema_build.py` (it had been hand-written in the pre-0.17.1
+`@key`/`@value` encoding, which the current runtime cannot read); the
+web app now reads the canonical `medical.json` in place through a
+`@schema/*` alias rather than keeping a copy; and both its schema reader
+and the gate contract accept either encoding.
+
+**What is not here.** The second copy also contained a conference paper
+draft, its LaTeX sources, and the measured ablation results and harness
+behind it (`results/`, `scripts/nesy_results/`). Those were deliberately
+left out of this branch, which carries only code. Consequently `npm test`
+does not run here: its `test:results` and `test:paper` stages read from
+those directories. The gate conformance suite does run, and passes:
+
+```bash
+cd web
+node --experimental-strip-types --import ./scripts/ts-alias-hooks.mjs \
+  src/test/js/gate_conformance.mjs      # 78 checks, contract drift 0
+```
+
+Node 22.18+ (or 23+) is needed for native TypeScript stripping.
 
 ### Next steps: alignment
 
 The duplication above is a maintenance liability, not a design. The
 options for removing it, roughly in order of increasing ambition:
 
-1. **Share the schema properly.** Already partly done — both sides read
-   `src/main/json/`. The web reader should consume Hydra's own encoding
-   rather than pattern-matching JSON shapes.
+1. **Share the schema properly.** Partly done — both sides read
+   `src/main/json/`, and the web app now reads `medical.json` in place.
+   `hospitality.json` is still duplicated under `web/`, because the
+   gate's copy has moved ahead: it adds `supersededBy` across all 19
+   knowledge classes, widens `supportedBy` to the 16 classes that use
+   it, and gives several edges multi-label endpoints. Regenerating the
+   root artifact from `schema_build.py` currently yields a schema
+   against which 16 of those 19 classes cannot bind a provenance edge,
+   so the two must be reconciled before either is canonical.
 2. **Adopt Hydra-TypeScript in `web/`.** Hydra publishes TypeScript
    packages to npm. If they cover the property-graph DSL and the
    validation surface the Python side depends on, the web application
