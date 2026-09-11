@@ -1,29 +1,8 @@
 import type { GraphDelta, GraphEdge, GraphState, GraphVertex, JsonValue } from "./types";
-import { getDomain, type DomainConfig, type DomainSchema } from "./domains";
+import { entryKey, entryValue, getDomain, type DomainConfig, type DomainSchema } from "./domains";
 
-type SchemaProperty = {
-  key: string;
-  value?: unknown;
-  required?: boolean;
-};
 
-type SchemaVertexEntry = {
-  "@key": string;
-  "@value": {
-    properties?: SchemaProperty[];
-  };
-};
 
-type SchemaEdgeEntry = {
-  "@key": string;
-  "@value": {
-    out?: string | string[];
-    in?: string | string[];
-    outV?: string | string[];
-    inV?: string | string[];
-    properties?: SchemaProperty[];
-  };
-};
 
 /** An endpoint declaration is one label or several; normalize to a set. */
 function endpointSet(value: string | string[] | undefined): Set<string> {
@@ -55,30 +34,37 @@ function schemaRuntime(domain: DomainConfig): SchemaRuntime {
   if (cached) return cached;
   const schema = domain.schema as DomainSchema;
   const vertexSpecs = new Map<string, VertexSpec>(
-    (schema.vertices as SchemaVertexEntry[]).map((entry) => [
-    entry["@key"],
+    schema.vertices.map((entry) => {
+    const label = entryKey(entry);
+    return [
+    label,
     {
-      label: entry["@key"],
-      properties: new Set((entry["@value"].properties ?? []).map((prop) => prop.key))
+      label,
+      properties: new Set((entryValue(entry)?.properties ?? []).map((prop) => prop.key))
     }
-    ])
+    ];
+    })
   );
 
   const edgeSpecs = new Map<string, EdgeSpec>(
-    (schema.edges as SchemaEdgeEntry[]).map((entry) => [
-    entry["@key"],
+    schema.edges.map((entry) => {
+    const label = entryKey(entry);
+    const body = entryValue(entry);
+    return [
+    label,
     {
-      label: entry["@key"],
-      out: endpointSet(entry["@value"].out ?? entry["@value"].outV),
-      in: endpointSet(entry["@value"].in ?? entry["@value"].inV),
-      properties: new Set((entry["@value"].properties ?? []).map((prop) => prop.key)),
+      label,
+      out: endpointSet(body?.out ?? body?.outV),
+      in: endpointSet(body?.in ?? body?.inV),
+      properties: new Set((body?.properties ?? []).map((prop) => prop.key)),
       requiredProperties: new Set(
-        (entry["@value"].properties ?? [])
+        (body?.properties ?? [])
           .filter((prop) => prop.required)
           .map((prop) => prop.key)
       )
     }
-    ])
+    ];
+    })
   );
   const runtime = { vertexSpecs, edgeSpecs };
   runtimeCache.set(domain.id, runtime);

@@ -33,7 +33,11 @@ function resolveFile(base) {
 module.registerHooks({
   resolve(specifier, context, nextResolve) {
     let base = null;
-    if (specifier.startsWith("@/")) {
+    if (specifier.startsWith("@schema/")) {
+      // Mirrors the "@schema/*" path in tsconfig.json: the committed schema
+      // artifacts live outside web/, in the repo-root src/main/json/.
+      base = path.join(ROOT, "..", "src", "main", "json", specifier.slice("@schema/".length));
+    } else if (specifier.startsWith("@/")) {
       base = path.join(ROOT, specifier.slice(2));
     } else if (specifier.startsWith(".") && context.parentURL?.startsWith("file:")) {
       base = path.resolve(path.dirname(fileURLToPath(context.parentURL)), specifier);

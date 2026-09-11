@@ -12,7 +12,7 @@
  * gate, and the schema all read from it, so they cannot disagree.
  */
 
-import { getDomain, type DomainSchema } from "@/lib/domains";
+import { entryKey, entryValue, getDomain, type DomainSchema } from "@/lib/domains";
 import hospitalityRulesRaw from "@/hopitality files/validation rules.json";
 import hospitalityProvenanceRaw from "@/hopitality files/provenance spec.json";
 
@@ -112,31 +112,39 @@ function buildContract(domainId: string): GateContract {
   const drift: DriftFinding[] = [];
 
   const vertexSpecs = new Map<string, VertexSpec>(
-    schema.vertices.map((entry) => [
-      entry["@key"],
-      {
-        label: entry["@key"],
-        properties: new Set((entry["@value"].properties ?? []).map((prop) => prop.key)),
-        requiredProperties: new Set(
-          (entry["@value"].properties ?? []).filter((prop) => prop.required).map((prop) => prop.key)
-        ),
-        propertyTypes: new Map(
-          (entry["@value"].properties ?? []).map((prop) => [prop.key, declaredType(prop.value)])
-        )
-      }
-    ])
+    schema.vertices.map((entry) => {
+      const label = entryKey(entry);
+      const props = entryValue(entry)?.properties ?? [];
+      return [
+        label,
+        {
+          label,
+          properties: new Set(props.map((prop) => prop.key)),
+          requiredProperties: new Set(
+            props.filter((prop) => prop.required).map((prop) => prop.key)
+          ),
+          propertyTypes: new Map(
+            props.map((prop) => [prop.key, declaredType(prop.value)])
+          )
+        }
+      ];
+    })
   );
 
   const edgeSpecs = new Map<string, EdgeSpec>(
-    schema.edges.map((entry) => [
-      entry["@key"],
-      {
-        label: entry["@key"],
-        out: endpointSet(entry["@value"].out ?? entry["@value"].outV),
-        in: endpointSet(entry["@value"].in ?? entry["@value"].inV),
-        properties: new Set((entry["@value"].properties ?? []).map((prop) => prop.key))
-      }
-    ])
+    schema.edges.map((entry) => {
+      const label = entryKey(entry);
+      const body = entryValue(entry);
+      return [
+        label,
+        {
+          label,
+          out: endpointSet(body?.out ?? body?.outV),
+          in: endpointSet(body?.in ?? body?.inV),
+          properties: new Set((body?.properties ?? []).map((prop) => prop.key))
+        }
+      ];
+    })
   );
 
   const governance = governanceFor(domain.id);
