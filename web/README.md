@@ -2,7 +2,7 @@
 
 chatgraph is a live knowledge-elicitation system: a domain expert speaks or types, one language model conducts a structured interview, a second proposes a typed property graph of what was said, and a **deterministic symbolic gate** decides, fact by fact, what is allowed to persist. Nothing enters the graph without an admission decision that binds it to the expert's own words.
 
-> **Research paper:** [`final draft v3.md`](final%20draft%20v3.md) (KG-NeSy 2026). **Architecture:** [`architecture latest.md`](architecture%20latest.md). **Measurement record:** [`results/`](results/), with the iteration history in [`results/iterations/`](results/iterations/).
+> **Architecture:** [`architecture latest.md`](architecture%20latest.md). **Research paper and measurement record:** not in this repository yet — the KG-NeSy 2026 draft, `results/`, and the iteration history remain in the Chatgraph-V2 repository until they are given a home here (see issue #1).
 
 The app pairs a conversational assistant with a governed graph extractor. The assistant asks domain-specific follow-up questions, while the extractor turns the expert's answers into typed vertices and edges that the gate admits, rejects with a typed error for a bounded retry, or repairs. The result is a transcript on the left and a live, provenance-carrying graph on the right, updating turn by turn.
 
@@ -73,9 +73,9 @@ npm run dev          # start the app
 npm run typecheck
 npm run lint
 npm run build
-npm test             # gate conformance, results integrity, paper-claim verification
-npm run ablation     # re-run the A0-A5 evaluation (API calls are cached)
-npm run results:build
+npm test                # typecheck + gate conformance (offline)
+npm run trial:quality   # opt-in, paid: fixed-corpus extractor+gate trial
+npm run trial:product   # opt-in, paid: full-loop session trial with a simulated expert
 ```
 
 ## Architecture
@@ -166,10 +166,12 @@ while drift is non-zero. `npm test` asserts drift is zero.
 
 ## Evaluation
 
-`results/` holds a measured staged ablation (A0–A5) of the gate over a four-session
-elicitation corpus (196 expert turns, 164 eligible). The harness imports the deployed gate,
-so a result is a claim about the shipped system, and extraction is stateless so that only
-the gate varies across conditions.
+The gate was evaluated in the Chatgraph-V2 repository with a measured staged ablation
+(A0–A5) over a four-session elicitation corpus (196 expert turns, 164 eligible). The
+harness imports the deployed gate, so a result is a claim about the shipped system, and
+extraction is stateless so that only the gate varies across conditions. The evaluation
+package (`results/`), the harness, and the paper draft are not in this repository yet
+(see issue #1); the figures below are quoted from that record.
 
 Headline (final corpus, 164 turns): the full gate produces **2.17** usable, grounded,
 audited facts per interview turn versus **1.84** for constrained decoding alone — a paired
@@ -181,17 +183,18 @@ live audit of the deployed graphs finds the fact layer strong (evidential faithf
 **92.9%**, verbatim-span rule held on **208/211** grounded items) and the relationship
 layer the honest frontier (**43.8%** of edges supported).
 
-- **Research paper:** [`final draft v3.md`](final%20draft%20v3.md) — the KG-NeSy 2026
-  submission draft. `npm run test:paper` fails CI if any figure in it diverges from
+- **Research paper:** `final draft v3.md` in Chatgraph-V2 — the KG-NeSy 2026 submission
+  draft. There, `npm run test:paper` fails if any figure in it diverges from
   `results/metrics.json`.
 - **Architecture reference:** [`architecture latest.md`](architecture%20latest.md) — layers,
   per-turn flow, the six gate constraint classes, provenance, identity, and grounding.
-- **The measurement record:** `results/results.md` (narrative), `results/table1.md` (table),
-  `results/claims.md` (claim registry), and `results/iterations/` — every methodological
-  iteration frozen with its metrics snapshot, negative results included.
+- **The measurement record (Chatgraph-V2):** `results/results.md` (narrative),
+  `results/table1.md` (table), `results/claims.md` (claim registry), and
+  `results/iterations/` — every methodological iteration frozen with its metrics snapshot,
+  negative results included.
 
 Per-turn rows, the API cache, and the audit sample quote the expert verbatim and are
-**not committed**; regenerate them locally with `npm run ablation`.
+**not committed** anywhere; regenerate them there with `npm run ablation`.
 
 
 ## Graph Model
@@ -347,17 +350,11 @@ src/test/js/
 
 scripts/
   ts-alias-hooks.mjs           Lets plain node run the app's TypeScript
-  nesy_results/
-    run_gated_ablation.mjs     A0-A5 ablation against the deployed gate
-    build_results_package.mjs  Metrics, tables, narrative, blinded audit sample
-    validate_results.mjs       Results-package integrity check
-    verify_paper_claims.mjs    Every paper figure must match metrics.json
-    legacy/                    Superseded 2026-07-16 harness, retained for audit
+  graph_quality_trial.mjs      Opt-in, paid: fixed-corpus extractor+gate trial
+  product_trial.mjs            Opt-in, paid: full-loop session trial
 
-results/                       Measured evaluation package (raw rows not committed)
-
-src/main/python/chatgraph/
-  domains/                     Schema-authoring and legacy companion modules
+../src/main/python/chatgraph/
+  domains/                     Schema authoring for the Python application
 ```
 
 ## Local Setup
@@ -407,16 +404,18 @@ npm run build
 npm test
 ```
 
-`npm test` runs three independent checks:
+`npm test` runs two offline checks:
 
+- **`typecheck`** — `tsc --noEmit` over the app, the gate, and the scripts.
 - **`test:gate`** — gate conformance: the five constraint classes behave as specified,
-  the contract binds to the schema with zero drift, and the extractor is never offered
-  an edge only the gate may write.
-- **`test:results`** — results-package integrity: every reported proportion carries exact
-  counts and a Wilson interval, the summary reconciles against the raw rows, and the audit
-  sample is genuinely blinded.
-- **`test:paper`** — every figure quoted in the paper matches `results/metrics.json`, the
-  significance claims match the paired tests, and no human-verification claim is made.
+  the contract binds to the schema with zero drift, every declared property type resolves
+  under both schema encodings, and the extractor is never offered an edge only the gate
+  may write.
+
+The results-integrity and paper-claim checks (`test:results`, `test:paper`) belong to the
+measurement package and run in the Chatgraph-V2 repository until it moves here. The two
+trial harnesses (`npm run trial:quality`, `npm run trial:product`) call the OpenAI API and
+are opt-in.
 
 ## Deployment
 
