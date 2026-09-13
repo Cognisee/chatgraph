@@ -163,6 +163,7 @@ export class OpenAIRealtimeSession {
 
   setAssistantResponsesBlocked(blocked: boolean): void {
     this.assistantResponsesBlocked = blocked;
+    if (!blocked) this.requestResponseIfReady();
   }
 
   private handleEvent(raw: string): void {
@@ -205,7 +206,7 @@ export class OpenAIRealtimeSession {
     if (event.type === "conversation.item.input_audio_transcription.completed") {
       const text = event.transcript?.trim();
       if (text) {
-        this.callbacks.onUserTranscript(text);
+        this.queueUserTranscript(text);
       }
       return;
     }

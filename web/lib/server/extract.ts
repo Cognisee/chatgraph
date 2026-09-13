@@ -73,7 +73,9 @@ export async function extractGraphDelta(
     delta: { vertices: [], edges: [] },
     warnings: ["Extractor did not run."]
   };
-  return result;
+  return body.domainId === "medical"
+    ? polishMedicalExtraction(result, latestText, body)
+    : result;
 }
 
 function scoreDelta(result: { delta: GraphDelta; warnings: string[] }): number {
