@@ -121,3 +121,5 @@ def _register_all() -> None:
         from chatgraph.domains import medical  # noqa: F401
     if "aviation" not in REGISTRY:
         from chatgraph.domains import aviation  # noqa: F401
+    if "hospitality" not in REGISTRY:
+        from chatgraph.domains import hospitality  # noqa: F401
