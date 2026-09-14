@@ -29,6 +29,7 @@
  */
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import OpenAI from "openai";
 
@@ -48,7 +49,8 @@ for (const line of fs.existsSync(".env") ? fs.readFileSync(".env", "utf8").split
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const OUT = process.argv[2] ?? path.join(
-  "/tmp/claude-1000/-workspaces-Chatgraph-V2/7d6c85b0-e91c-40e4-8dc9-0781310611d9/scratchpad",
+  os.tmpdir(),
+  "chatgraph-trials",
   "graph-quality-trial.json"
 );
 

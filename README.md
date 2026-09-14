@@ -487,7 +487,7 @@ checks, which pass here.
 ```bash
 cd web
 npm install
-npm test        # typecheck + 78 conformance checks, contract drift 0
+npm test        # typecheck + 79 conformance checks, contract drift 0
 ```
 
 Node 22.18+ (or 23+) is required; the suite relies on native TypeScript

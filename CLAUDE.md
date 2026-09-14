@@ -21,8 +21,9 @@ execution path. Confusing them is the most common mistake here.
 
 | System | Status | Lives in |
 |---|---|---|
-| **Next.js browser app** | the live product | `app/`, `lib/`, `components/` |
-| **Symbolic gate + evaluation** | the research contribution | `lib/gate/`, `scripts/nesy_results/`, `results/` |
+| **Next.js browser app** | the live product | `web/app/`, `web/lib/`, `web/components/` |
+| **Symbolic gate** | the research contribution | `web/lib/gate/`, tested by `web/src/test/js/` |
+| **Evaluation package + paper** | the measurement record | not in this repository yet — still in Chatgraph-V2 (see issue #1) |
 | **Python voice/Gremlin runtime** | legacy companion, not invoked by the app | `src/main/python/chatgraph/` |
 
 The browser app does **not** import the Python package, HydraPop,
@@ -32,22 +33,24 @@ the legacy runtime only.
 ## The symbolic gate
 
 For the hospitality domain, nothing enters the graph without a
-deterministic admission decision (`lib/gate/`). Five constraint classes:
+deterministic admission decision (`web/lib/gate/`). Five constraint classes:
 typed-schema conformance, provenance with a specificity rule, confidence
 vocabulary, content-derived identity, and invalidate-not-delete
 supersession.
 
 Three invariants matter more than the code:
 
-1. **One contract, generated.** `lib/gate/contract.ts` derives a single
-   contract from `src/main/json/hospitality.json` plus the authored specs
-   in `hopitality files/`. The extractor's schema reference, its tool
+1. **One contract, generated.** `web/lib/gate/contract.ts` derives a single
+   contract from the hospitality schema JSON plus the authored specs in
+   `web/hopitality files/`. (Today the gate reads its own legacy-encoded
+   copy, `web/src/main/json/hospitality.json`; the schema reconciliation
+   retires that copy in favour of `src/main/json/hospitality.json`.) The extractor's schema reference, its tool
    parameter schema, and the gate's rules are all generated from it.
    **Never restate a label, endpoint, severity, or vocabulary in a
    prompt or in code.** Every drift bug this project has had came from a
    hand-written copy of something the schema already said. A rule the
    contract cannot bind is reported as drift and disabled; `npm test`
-   asserts drift is zero.
+   (run in `web/`) asserts drift is zero.
 2. **Provenance is structural.** The extractor attaches an `evidence`
    object to a fact; the gate materializes the evidence vertex and picks
    the provenance edge. Do not ask the model to emit `ProvenanceEvidence`
@@ -58,7 +61,11 @@ Three invariants matter more than the code:
 
 ## Research claims must stay measured
 
-`results/` is a measured evaluation package, not a narrative. Rules:
+The measurement record — `results/`, the ablation harness under
+`scripts/nesy_results/`, and the paper draft — did not come across in the
+web import; it still lives in the Chatgraph-V2 repository until it is given
+a home here (issue #1). The commands below are that repository's. The rules
+apply to any measurement that lands in either place:
 
 - Never convert `UNMEASURED` into a number. A missing denominator is not
   a zero.
@@ -131,15 +138,22 @@ parallel copy of it by hand.
 - `medical.json` is *generated*. Edit
   `domains/medical/schema_build.py` and regenerate; never hand-edit the
   JSON. The chain below describes this case.
-- `hospitality.json` is *hand-authored*. It was supplied as JSON, and
-  `domains/hospitality/schema_build.py` only validates that the artifact
-  exists and has the right shape — there is no generator to regenerate
-  from. Edit the JSON directly, then run `npm test` to confirm the gate
-  contract still binds with zero drift.
+- `hospitality.json` was originally *hand-authored* in the pre-0.17.1
+  encoding; since the import it is generated from
+  `domains/hospitality/schema_build.py` like `medical.json`. The web gate
+  still reads its own legacy-encoded copy,
+  `web/src/main/json/hospitality.json`, which carries schema deltas the
+  generator does not yet declare (`supersededBy`, and wider endpoints on
+  `supportedBy`, `heuristicSupportedBy`, `signalTriggers`,
+  `heuristicExplains`, and `modulatedBy`). The reconciliation PR ports
+  those into `schema_build.py` and retires the copy. After any schema
+  change, run `npm test` in `web/` to confirm the gate contract still
+  binds with zero drift.
 
 An endpoint declaration (`outV` / `inV`) may be a single label or an
 array of labels. One relation legitimately accepts many source types:
-`supportedBy` attaches evidence to all 16 knowledge classes that use it.
+in the web gate's schema, `supportedBy` attaches evidence to 16 knowledge
+classes.
 Any schema reader must handle both forms.
 
 The chain for generated schemas is one-directional:

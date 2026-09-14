@@ -27,6 +27,14 @@ export type VertexSpec = {
 };
 
 function declaredType(value: unknown): string {
+  // Hydra 0.17.1 writes a literal type as its bare name ("string"); the
+  // pre-0.17.1 encoding wrapped it in an object ({"string": {}}). Accept both,
+  // so the contract types the canonical artifact and the legacy copy alike.
+  // Anything the gate cannot type is "other", which a conformance check keeps
+  // at zero for every shipped schema.
+  if (typeof value === "string") {
+    return value === "string" || value === "boolean" || value === "integer" ? value : "other";
+  }
   if (value && typeof value === "object") {
     if ("string" in (value as object)) return "string";
     if ("boolean" in (value as object)) return "boolean";

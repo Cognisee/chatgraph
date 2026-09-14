@@ -28,6 +28,10 @@ Core conventions:
 - Every new Headache should connect from Person:patient through reports.
 - Bare symptom labels such as Nausea or LightSensitivity can use the label as the id.
 - Vocabulary vertices with a value use ids like Label:lowercase-slug.
+- Required value properties are mandatory. Frequency, Duration, BodyLocation, Quality, Severity, Age, and similar value-carrying vertices must include a concise value property using the patient's actual words or a faithful normalization.
+- Pain feel words such as sharp, needle-like, throbbing, pounding, pressure, tight-band, stabbing, burning, dull, or electric are Quality vertices connected with hasQuality. Do not put these in PainCharacter.
+- PainCharacter is only for non-quality pain behavior flags such as worse with activity, worse at night, positional, wakes from sleep, worse bending forward, or progressively worse. If you emit PainCharacter, include a short note when the patient supplied one.
+- Frequency answers like "twice a week" must create Frequency { value: "twice a week", count: 2, per: "week" } when possible.
 - Bucket vertices such as HeadacheTriggers and AlleviatingFactors use ids like HeadacheTriggers:daily or HeadacheTriggers:shared.
 - Prefer sparse correct graph deltas over inventive ones.
 - Never invent labels or edge directions outside the schema reference.`;
