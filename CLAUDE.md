@@ -7,85 +7,19 @@ domain-specific schema walkthroughs, see `docs/` (e.g.
 
 ## What is chatgraph?
 
-A knowledge-elicitation system. A subject speaks or types in their own
-words about a topic in a chosen *domain*; an LLM conducts an interview
-in real time; a second LLM proposes a typed property graph of what was
-said; and a **deterministic symbolic gate** decides, fact by fact, what
-is allowed to persist. Two domains ship: `medical` (headache interview)
-and `hospitality` (expert operating knowledge).
+A voice-driven knowledge-elicitation demo. A subject speaks in their
+own words about some topic in a chosen *domain*; an LLM-driven
+assistant conducts an interview in real time; a second LLM extracts a
+typed property graph of what was said, vertex by vertex and edge by
+edge, into a live TinkerPop Gremlin Server. The architecture is
+domain-neutral; three domains ship (`medical`, `aviation`, and
+`hospitality`).
 
-## Read this first: which system is which
-
-The repository contains three systems that share concepts but not an
-execution path. Confusing them is the most common mistake here.
-
-| System | Status | Lives in |
-|---|---|---|
-| **Next.js browser app** | the live product | `web/app/`, `web/lib/`, `web/components/` |
-| **Symbolic gate** | the research contribution | `web/lib/gate/`, tested by `web/src/test/js/` |
-| **Evaluation package + paper** | the measurement record | not in this repository yet — still in Chatgraph-V2 (see issue #1) |
-| **Python voice/Gremlin runtime** | legacy companion, not invoked by the app | `src/main/python/chatgraph/` |
-
-The browser app does **not** import the Python package, HydraPop,
-Deepgram, or Gremlin. Most of the sections below about HydraPop describe
-the legacy runtime only.
-
-## The symbolic gate
-
-For the hospitality domain, nothing enters the graph without a
-deterministic admission decision (`web/lib/gate/`). Five constraint classes:
-typed-schema conformance, provenance with a specificity rule, confidence
-vocabulary, content-derived identity, and invalidate-not-delete
-supersession.
-
-Three invariants matter more than the code:
-
-1. **One contract, generated.** `web/lib/gate/contract.ts` derives a single
-   contract from the hospitality schema JSON plus the authored specs in
-   `web/hopitality files/`. (Today the gate reads its own legacy-encoded
-   copy, `web/src/main/json/hospitality.json`; the schema reconciliation
-   retires that copy in favour of `src/main/json/hospitality.json`.) The extractor's schema reference, its tool
-   parameter schema, and the gate's rules are all generated from it.
-   **Never restate a label, endpoint, severity, or vocabulary in a
-   prompt or in code.** Every drift bug this project has had came from a
-   hand-written copy of something the schema already said. A rule the
-   contract cannot bind is reported as drift and disabled; `npm test`
-   (run in `web/`) asserts drift is zero.
-2. **Provenance is structural.** The extractor attaches an `evidence`
-   object to a fact; the gate materializes the evidence vertex and picks
-   the provenance edge. Do not ask the model to emit `ProvenanceEvidence`
-   vertices or provenance edges — the gate ignores them by design.
-3. **Severity comes from the spec, not the code.** `hard` rejects and
-   retries, `soft` admits and flags, `advisory` reports. If you find
-   yourself hardcoding a severity, read `validation rules.json` instead.
-
-## Research claims must stay measured
-
-The measurement record — `results/`, the ablation harness under
-`scripts/nesy_results/`, and the paper draft — did not come across in the
-web import; it still lives in the Chatgraph-V2 repository until it is given
-a home here (issue #1). The commands below are that repository's. The rules
-apply to any measurement that lands in either place:
-
-- Never convert `UNMEASURED` into a number. A missing denominator is not
-  a zero.
-- Every proportion carries exact counts and a Wilson interval.
-- The ablation harness imports the deployed gate. Do not create a second
-  gate implementation for evaluation — that is exactly how the
-  superseded 2026-07-16 run produced a bug it reported as a finding.
-- `npm test` verifies that every figure in the paper matches
-  `results/metrics.json`. If you change a measurement, re-run
-  `npm run ablation && npm run results:build` and update the paper;
-  do not edit numbers by hand.
-- Evidential faithfulness is model-adjudicated. Do not describe it as
-  human-verified; the blinded sample is unlabelled.
-- **Every methodological iteration gets a numbered file in
-  `results/iterations/`** — date, method, outcome with counts, reasoning,
-  evidence — plus a frozen `iteration-NN-metrics.json` snapshot, *before work
-  moves on*. `results/metrics.json` is the current run and gets overwritten;
-  the numbered snapshots never do. `npm run test:results` fails if the current
-  run is not frozen as the latest snapshot. Negative results, dead ends, and
-  non-replications belong in the record — they are corpus for the paper.
+This is the primary application: it is where the Hydra work lands and
+what the demos are built on. A second, independently built browser
+application lives under `web/` and has its own guide at
+`web/CLAUDE.md` — read that one before touching anything under `web/`,
+and this one for everything else.
 
 ## Where code lives
 
@@ -117,14 +51,16 @@ projects (Hydra, the Hydra Python dist packages).
   `gremlin-setup.md`). The top-level `README.md` is the entry point.
 - `bin/diagnose.py` — one-shot health check of all external
   dependencies.
-- `web/` — a **separate** Next.js browser prototype, contributed by
-  Yawar Sayeed. It is *not* a client of the Python backend: it
-  reimplements the agent and extractor in TypeScript against the
-  OpenAI Realtime and Anthropic APIs and keeps its graph in browser
-  IndexedDB, talking to no Gremlin Server. The two stacks share only
-  the schema JSON in `src/main/json/`. Keep it that way — new backend
-  work belongs under `src/main/python/`, and `web/` should reach into
-  the Python tree only through committed schema artifacts.
+- `web/` — a **separate** Next.js browser application, contributed by
+  Yawar Sayeed, with its own guide at `web/CLAUDE.md`. It is *not* a
+  client of the Python backend: it reimplements the agent and extractor
+  in TypeScript against the OpenAI Realtime and Anthropic APIs, adds a
+  contract-derived symbolic gate that decides fact by fact what may
+  persist, and keeps its graph in browser IndexedDB, talking to no
+  Gremlin Server. The two stacks share only the schema JSON in
+  `src/main/json/`. Keep it that way — new backend work belongs under
+  `src/main/python/`, and `web/` should reach into the Python tree only
+  through committed schema artifacts.
 
 ## Schema: one source of truth
 
