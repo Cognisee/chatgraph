@@ -1621,6 +1621,31 @@ test("an unchanged re-emission still keeps its original provenance (no churn)", 
   );
 });
 
+// --- schema encoding (post-import fix-up) ---------------------------------
+
+test("every declared property type resolves under both schema encodings, so no shipped artifact reads as untyped", () => {
+  // Regression: declaredType() recognized only the pre-0.17.1 object form
+  // ({"string": {}}). Against the canonical medical.json, whose literal types
+  // are bare names ("string"), 82 of its properties classified as "other":
+  // typed conformance and schema-derived naming were silently off for
+  // medical, and hospitality would have followed the moment its contract read
+  // the root artifact instead of the legacy copy. Medical reads the canonical
+  // encoding and hospitality the legacy one, so this covers both.
+  for (const domainId of ["medical", "hospitality"]) {
+    const untyped = [];
+    for (const spec of gateContract(domainId).vertexSpecs.values()) {
+      for (const [key, type] of spec.propertyTypes) {
+        if (type === "other") untyped.push(`${spec.label}.${key}`);
+      }
+    }
+    assert.deepEqual(
+      untyped,
+      [],
+      `${domainId}: every declared property must type as string, boolean, or integer`
+    );
+  }
+});
+
 // --- report ---------------------------------------------------------------
 
 await Promise.all(pending);
