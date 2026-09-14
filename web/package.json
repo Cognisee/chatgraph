@@ -1,0 +1,36 @@
+{
+  "name": "chatgraph-vercel-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit --incremental false",
+    "test": "npm run typecheck && npm run test:gate",
+    "test:gate": "node --experimental-strip-types --import ./scripts/ts-alias-hooks.mjs --no-warnings src/test/js/gate_conformance.mjs",
+    "trial:quality": "node --experimental-strip-types --import ./scripts/ts-alias-hooks.mjs scripts/graph_quality_trial.mjs",
+    "trial:product": "node --experimental-strip-types --import ./scripts/ts-alias-hooks.mjs scripts/product_trial.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "d3-force": "^3.0.0",
+    "lucide-react": "^0.468.0",
+    "next": "^15.3.0",
+    "openai": "^6.42.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-force-graph-2d": "^1.29.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@types/d3-force": "^3.0.10",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.3.0",
+    "typescript": "^5.7.0"
+  }
+}

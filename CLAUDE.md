@@ -11,9 +11,15 @@ A voice-driven knowledge-elicitation demo. A subject speaks in their
 own words about some topic in a chosen *domain*; an LLM-driven
 assistant conducts an interview in real time; a second LLM extracts a
 typed property graph of what was said, vertex by vertex and edge by
-edge, into a live TinkerPop Gremlin Server. The first shipped domain
-(`medical`) interviews a patient about headache disorders; the
-architecture is domain-neutral.
+edge, into a live TinkerPop Gremlin Server. The architecture is
+domain-neutral; three domains ship (`medical`, `aviation`, and
+`hospitality`).
+
+This is the primary application: it is where the Hydra work lands and
+what the demos are built on. A second, independently built browser
+application lives under `web/` and has its own guide at
+`web/CLAUDE.md` — read that one before touching anything under `web/`,
+and this one for everything else.
 
 ## Where code lives
 
@@ -45,6 +51,16 @@ projects (Hydra, the Hydra Python dist packages).
   `gremlin-setup.md`). The top-level `README.md` is the entry point.
 - `bin/diagnose.py` — one-shot health check of all external
   dependencies.
+- `web/` — a **separate** Next.js browser application, contributed by
+  Yawar Sayeed, with its own guide at `web/CLAUDE.md`. It is *not* a
+  client of the Python backend: it reimplements the agent and extractor
+  in TypeScript against the OpenAI Realtime and Anthropic APIs, adds a
+  contract-derived symbolic gate that decides fact by fact what may
+  persist, and keeps its graph in browser IndexedDB, talking to no
+  Gremlin Server. The two stacks share only the schema JSON in
+  `src/main/json/`. Keep it that way — new backend work belongs under
+  `src/main/python/`, and `web/` should reach into the Python tree only
+  through committed schema artifacts.
 
 ## Schema: one source of truth
 
@@ -53,7 +69,30 @@ is the **single source of truth for the graph schema**. Everything that
 needs to know the schema derives from that JSON; nothing maintains a
 parallel copy of it by hand.
 
-The chain is one-directional:
+**The two domains are authored differently, and this matters:**
+
+- `medical.json` is *generated*. Edit
+  `domains/medical/schema_build.py` and regenerate; never hand-edit the
+  JSON. The chain below describes this case.
+- `hospitality.json` was originally *hand-authored* in the pre-0.17.1
+  encoding; since the import it is generated from
+  `domains/hospitality/schema_build.py` like `medical.json`. The web gate
+  still reads its own legacy-encoded copy,
+  `web/src/main/json/hospitality.json`, which carries schema deltas the
+  generator does not yet declare (`supersededBy`, and wider endpoints on
+  `supportedBy`, `heuristicSupportedBy`, `signalTriggers`,
+  `heuristicExplains`, and `modulatedBy`). The reconciliation PR ports
+  those into `schema_build.py` and retires the copy. After any schema
+  change, run `npm test` in `web/` to confirm the gate contract still
+  binds with zero drift.
+
+An endpoint declaration (`outV` / `inV`) may be a single label or an
+array of labels. One relation legitimately accepts many source types:
+in the web gate's schema, `supportedBy` attaches evidence to 16 knowledge
+classes.
+Any schema reader must handle both forms.
+
+The chain for generated schemas is one-directional:
 
 1. `domains/<name>/schema_build.py` is a *convenience authoring tool*,
    not a second source of truth and not a runtime dependency. Its only
@@ -137,9 +176,12 @@ These are non-negotiable.
 1. **Never commit secrets.** `.env`, API keys, credentials. The
    gitignore covers `.env`. If you find a secret in the tree, ask the
    user how to scrub it.
-2. **Never commit `transcripts/`.** These can contain real
-   patient-session content (or any other domain's real interview
-   content). Ignored at the repo root.
+2. **Never commit interview content.** `transcripts/`, `data/`,
+   `results/raw/`, `results/cache/`, and `results/human_audit_sample.csv`
+   all carry verbatim subject speech and are gitignored. Before
+   committing anything under `results/`, confirm it contains no verbatim
+   utterances — summary metrics and tables are safe, per-turn rows and
+   cached API bodies are not.
 3. **Never push without explicit user authorization.** Local commits
    are fine; `git push`, `git push --force`, and remote changes
    require the user's go-ahead each time.
@@ -150,6 +192,9 @@ These are non-negotiable.
 5. **Never edit files under `transcripts/`, `.venv/`, `__pycache__/`,
    or any cache directory.** These are either regeneratable or
    per-session output.
+6. **Never hand-edit `results/metrics.json` or the numbers in the
+   paper.** Regenerate them from the harness. A figure that cannot be
+   regenerated is not a result.
 
 ## Working with Hydra
 
