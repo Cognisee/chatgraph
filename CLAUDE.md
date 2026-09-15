@@ -133,6 +133,12 @@ The chain for generated schemas is one-directional:
    `_format_schema_reference`). It is pure deterministic string-building
    over the decoded JSON; **no LLM is involved in producing it**, so it
    cannot drift from the schema. Likewise the tool-use spec / enums.
+
+   Because it is built once at construction and is byte-identical on
+   every call of a session, the system prompt carries a
+   `cache_control` breakpoint — see "Prompt caching" below. **Anything
+   that makes the system prompt vary per call silently destroys that**,
+   so keep per-utterance content in `messages`, never in the prompt.
 4. `docs/<domain>-schema.md` is **for human consumption only**. It is a
    prose walkthrough of the clinical model, loaded by *nothing* in the
    code. If it ever disagrees with the JSON, the JSON wins — treat the
@@ -143,6 +149,55 @@ Practical consequence: to change a domain's schema, edit
 walkthrough to match. Never hand-edit the JSON, and never encode schema
 facts (label lists, property types, edge endpoints) anywhere a human has
 to keep in sync — derive them from the JSON instead.
+
+## Prompt caching
+
+The extractor's system prompt is cached
+(`chat/extractor.py`, `cache_control: {"type": "ephemeral"}` on the
+system block). This matters more than it looks: the prompt is dominated
+by the generated schema reference, and it is re-sent on **every
+utterance** of an interview.
+
+Measured on the `aviation` domain — 50 vertex types, 179 edge types,
+~33.5k characters of system prompt:
+
+```
+call 1:   558 in,      0 cache-read,  12,455 cache-write,  600 out
+call 2: 1,186 in,  12,455 cache-read,       0 cache-write,  435 out
+call 3:   661 in,  12,455 cache-read,       0 cache-write,  203 out
+```
+
+**Roughly a 95% reduction in billed input tokens after the first call**
+(cache reads bill at ~10% of the input rate), plus the latency saving of
+not reprocessing the schema every turn. A one-hour interview is a few
+hundred extraction calls, so this is the difference between the schema
+being paid for once and paid for every time somebody speaks.
+
+Three things to know:
+
+1. **Caching is a prefix match, and render order is
+   `tools → system → messages`.** The breakpoint on the system block
+   therefore also covers the tool spec. Keep both stable; put everything
+   that varies per utterance in `messages`.
+2. **A cache miss is silent.** Nothing fails, it just costs full price
+   again. That is why the extractor logs token usage at INFO:
+
+   ```
+   Extractor tokens: 661 in, 12455 cache-read, 0 cache-write, 203 out
+   ```
+
+   **If `cache-read` is 0 on repeated calls, the prefix is being
+   invalidated** — usually because something rebuilt the system prompt
+   per call, or the tool spec is not deterministic. Run with `-v` and
+   look.
+3. **Schema size is now a latency and *accuracy* question, not a cost
+   one.** A schema twice as large costs twice as much to write to cache
+   *once*, not on every call. The real limit on schema growth is that a
+   larger schema gives the extractor more plausible-but-wrong places to
+   put things — under-specified material stops being *dropped* (visible)
+   and starts being *mis-assigned* (invisible). Prefer a schema fitted
+   to the interview over one that covers everything the subject might
+   mention.
 
 ## Commit-message conventions
 

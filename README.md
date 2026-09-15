@@ -364,6 +364,36 @@ Environment variables (in `.env` or your shell):
 | `CHATGRAPH_TTS_SPEED` | `1.15` | Speech-rate multiplier for OpenAI TTS (`0.25`–`4.0`; `1.0` is normal pace). The default is slightly brisk; raise toward `1.3` for a punchier demo, lower toward `1.0` for a calmer read. Out-of-range values are clamped. |
 | `CHATGRAPH_LOG_LEVEL` | (unset) | Overrides the `-v` / `-vv` flags. Set to `INFO` or `DEBUG` if you want. |
 
+Command-line flags:
+
+| Flag | Meaning |
+|---|---|
+| `--fresh` | Drop the Gremlin graph before starting, instead of resuming. |
+| `-v` / `-vv` | INFO (per-turn extractor/TTS/STT lines) / DEBUG. |
+| `--audio-input DEVICE` | Capture device — an index, or part of a device name. Defaults to the system default. |
+| `--audio-output DEVICE` | Playback device for the assistant's voice. Same form. |
+| `--list-audio-devices` | Print the available devices with their indices, and exit. |
+
+Name the audio devices explicitly whenever the default could change
+underneath you — plugging in headphones or joining a call can otherwise
+redirect capture mid-session. This is required when routing a remote
+participant's audio in over a virtual cable; see
+[`docs/remote-interview.md`](docs/remote-interview.md).
+
+### Extraction cost
+
+The extractor's system prompt is cached, so the schema is billed once
+per session rather than on every utterance — about a **95% reduction in
+input tokens after the first call**. Run with `-v` to see it working:
+
+```
+Extractor tokens: 661 in, 12455 cache-read, 0 cache-write, 203 out
+```
+
+**`cache-read` of 0 on repeated calls means the cache is broken** and
+the schema is being reprocessed every turn. See "Prompt caching" in
+`CLAUDE.md`.
+
 If the agent jumps in too eagerly when you pause to think, the
 Deepgram Flux API supports `eot_threshold` and `eot_timeout_ms`
 parameters that gate the `EagerEndOfTurn` and `EndOfTurn` events.

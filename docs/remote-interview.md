@@ -1,8 +1,8 @@
 # Running a live elicitation with a remote expert
 
 How to let someone on a video call talk to chatgraph, with the session
-recorded. Written for a specific case — interviewing an airline
-operations expert over Zoom — but the mechanics are general.
+recorded. Written against Zoom and macOS because that is what was
+tested; the mechanics are the same for any conferencing app.
 
 **The whole problem is audio routing.** chatgraph reads a capture device
 and writes to a playback device; it does not know or care that the human
