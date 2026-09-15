@@ -703,7 +703,21 @@ class Extractor:
                     # failed identically. A rich utterance can easily
                     # need 2-3k tokens for the vertex properties alone.
                     max_tokens=16384,
-                    system=self._system_prompt,
+                    # Cache the system prompt. It is byte-identical on
+                    # every call of a session and dominated by the
+                    # generated schema reference -- ~8.4k tokens on the
+                    # aviation domain, reprocessed on every utterance
+                    # otherwise. Render order is tools -> system ->
+                    # messages, so the breakpoint here also covers the
+                    # tool spec. Only the per-utterance messages vary,
+                    # which is exactly the shape caching wants.
+                    system=[
+                        {
+                            "type": "text",
+                            "text": self._system_prompt,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
                     tools=[self._tool],
                     tool_choice={"type": "tool", "name": "emit_graph_delta"},
                     messages=messages,
@@ -721,6 +735,22 @@ class Extractor:
                     "tokens); the delta is TRUNCATED and its edges are "
                     "probably missing. Raise max_tokens.",
                     getattr(getattr(resp, "usage", None), "output_tokens", "?"),
+                )
+
+            # Cache hits are silent when they work and silent when they
+            # do not, so report them. A cache_read of 0 on every call
+            # means something is invalidating the prefix -- the system
+            # prompt is rebuilt per call, or the tool spec is not stable
+            # -- and the schema is then being reprocessed every turn.
+            usage = getattr(resp, "usage", None)
+            if usage is not None:
+                log.info(
+                    "Extractor tokens: %s in, %s cache-read, %s cache-write, "
+                    "%s out",
+                    getattr(usage, "input_tokens", "?"),
+                    getattr(usage, "cache_read_input_tokens", "?"),
+                    getattr(usage, "cache_creation_input_tokens", "?"),
+                    getattr(usage, "output_tokens", "?"),
                 )
 
             tool_use = next(
