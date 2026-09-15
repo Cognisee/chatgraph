@@ -44,12 +44,21 @@ class VADReport:
 
 
 class AudioInput:
-    """Async microphone capture as 20 ms int16 frames at 16 kHz."""
+    """Async microphone capture as 20 ms int16 frames at 16 kHz.
 
-    def __init__(self) -> None:
+    ``device`` selects the capture device: an index or a (sub)string matched
+    against device names, as accepted by sounddevice. ``None`` uses the system
+    default. Naming a device explicitly matters when routing a remote
+    participant's audio in over a virtual cable (see docs/remote-interview.md):
+    relying on the system default means an OS-level default change silently
+    redirects capture mid-session.
+    """
+
+    def __init__(self, device: int | str | None = None) -> None:
         self._queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=200)
         self._loop: asyncio.AbstractEventLoop | None = None
         self._stream: sd.InputStream | None = None
+        self._device = device
 
     def _on_audio(
         self, indata: np.ndarray, frames: int, time_info, status
@@ -74,6 +83,7 @@ class AudioInput:
             dtype="int16",
             blocksize=FRAME_SAMPLES,
             callback=self._on_audio,
+            device=self._device,
         )
         self._stream.start()
         return self
@@ -96,9 +106,10 @@ class AudioOutput:
     cut playback immediately (used for barge-in).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, device: int | str | None = None) -> None:
         self._queue: asyncio.Queue[bytes | None] = asyncio.Queue()
         self._stream: sd.OutputStream | None = None
+        self._device = device
         self._writer_task: asyncio.Task[None] | None = None
         # idle_event is set when the writer has no pending chunks and no
         # in-flight blocking write. Used by speak-and-wait callers that
@@ -114,6 +125,7 @@ class AudioOutput:
             channels=1,
             dtype="int16",
             blocksize=FRAME_SAMPLES,
+            device=self._device,
         )
         self._stream.start()
         self._writer_task = asyncio.create_task(self._writer())

@@ -82,6 +82,14 @@ _DROP_GRAPH_AT_STARTUP = False
 # read by ``run()`` to construct the Agent and Extractor.
 _DOMAIN_NAME: str | None = None
 
+# Audio device overrides. None means "system default", which is the right
+# behaviour for a local session. For a remote interview the remote party's
+# audio arrives over a virtual cable and the assistant's voice has to go
+# somewhere the conferencing app will transmit, so both ends are named
+# explicitly -- see docs/remote-interview.md.
+_AUDIO_INPUT_DEVICE: int | str | None = None
+_AUDIO_OUTPUT_DEVICE: int | str | None = None
+
 
 def _now() -> float:
     return time.monotonic()
@@ -869,8 +877,8 @@ async def run() -> int:
         # handshake fails fast (it has a 15s timeout) before we touch the
         # audio hardware. Audio streams come up after STT is ready.
         async with DeepgramFluxSTT(keyterms=domain.stt_keyterms) as stt, \
-                AudioInput() as audio_in, \
-                AudioOutput() as audio_out, \
+                AudioInput(_AUDIO_INPUT_DEVICE) as audio_in, \
+                AudioOutput(_AUDIO_OUTPUT_DEVICE) as audio_out, \
                 GremlinWriter() as graph_writer:
             coord = Coordinator(
                 agent, tts, transcript, audio_out,
@@ -1033,6 +1041,7 @@ def main() -> int:
     parser.add_argument(
         "domain",
         choices=_available,
+        nargs="?",
         help=(
             "Which domain to run. Each domain bundles a schema, an "
             "agent system prompt, and an opening line. Available: "
@@ -1051,6 +1060,32 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--audio-input",
+        metavar="DEVICE",
+        default=None,
+        help=(
+            "Capture device: an index, or part of a device name. Defaults "
+            "to the system default. Use --list-audio-devices to see what is "
+            "available. Set this when routing a remote participant's audio "
+            "in over a virtual cable, so an OS default change cannot "
+            "silently redirect capture mid-session."
+        ),
+    )
+    parser.add_argument(
+        "--audio-output",
+        metavar="DEVICE",
+        default=None,
+        help=(
+            "Playback device for the assistant's voice: an index, or part "
+            "of a device name. Defaults to the system default."
+        ),
+    )
+    parser.add_argument(
+        "--list-audio-devices",
+        action="store_true",
+        help="Print the available audio devices with their indices, and exit.",
+    )
+    parser.add_argument(
         "--fresh",
         action="store_true",
         help=(
@@ -1062,7 +1097,17 @@ def main() -> int:
 
     # Map verbosity count to log level. CHATGRAPH_LOG_LEVEL still wins
     # if set explicitly in the environment.
+    if args.list_audio_devices:
+        import sounddevice as sd
+
+        print(sd.query_devices())
+        return 0
+
+    if args.domain is None:
+        parser.error("the following arguments are required: domain")
+
     global _DEFAULT_LOG_LEVEL, _DROP_GRAPH_AT_STARTUP, _DOMAIN_NAME
+    global _AUDIO_INPUT_DEVICE, _AUDIO_OUTPUT_DEVICE
     if args.verbose >= 2:
         _DEFAULT_LOG_LEVEL = "DEBUG"
     elif args.verbose == 1:
@@ -1072,6 +1117,16 @@ def main() -> int:
 
     _DROP_GRAPH_AT_STARTUP = args.fresh
     _DOMAIN_NAME = args.domain
+
+    # A device may be given as an index or as a name fragment; sounddevice
+    # accepts either, so only convert when it is all digits.
+    def _device(value: str | None) -> int | str | None:
+        if value is None:
+            return None
+        return int(value) if value.isdigit() else value
+
+    _AUDIO_INPUT_DEVICE = _device(args.audio_input)
+    _AUDIO_OUTPUT_DEVICE = _device(args.audio_output)
 
     try:
         return asyncio.run(_run_with_signal())
