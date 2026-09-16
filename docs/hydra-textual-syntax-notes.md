@@ -42,7 +42,37 @@ Meters := wrap{int32}
 Confirmed by Josh. The wiki is wrong here. Whether the *term*-level form
 also changed is not confirmed — we have only authored types so far.
 
-### 2. Module declarations and imports are undocumented
+### 2. Applying a user-defined parameterized type is undocumented
+
+The wiki shows how to *declare* a polymorphic type:
+
+```
+Pair := forall a, b. (a, b)
+```
+
+It never shows how to **apply** one. `<...>` appears only on builtins
+(`list<t>`, `map<k, v>`, `optional<t>`, `either<a, b>`); no example in
+either document writes `SomeUserType<arg>`.
+
+We are assuming the natural extension — the same angle brackets:
+
+```
+Quantity := forall v, u. record{value: v, unit: u}
+
+Length := Quantity<decimal, LengthUnit>
+```
+
+**Unconfirmed.** If application uses different syntax, or if the printer
+does not yet emit it, `units.hy` needs changing. The alternative shapes
+would be term-level type application spelled `⟨...⟩` (§2.3 reserves
+those brackets for *terms*, so probably not), or no surface syntax at
+all yet.
+
+Worth documenting upstream once settled: declaring a polymorphic type
+without being able to apply it is not much use, so the page likely wants
+one line showing application right after the `forall` examples.
+
+### 3. Module declarations and imports are undocumented
 
 Neither the wiki page nor the normative spec mentions modules, module
 declarations, or imports at all. `grep -i 'module\|import\|namespace'`
