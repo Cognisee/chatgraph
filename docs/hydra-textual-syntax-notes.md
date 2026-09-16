@@ -115,6 +115,38 @@ Compounds: `list<t>`, `set<t>`, `map<k, v>`, `optional<t>`, `(a, b)`,
 Closing brace sits on the last field's line. Fields use `:` for their
 type; `=` is term-level.
 
+## Modelling conventions
+
+**International neutrality.** These schemas must not assume a
+jurisdiction. Aviation regulation is ICAO-harmonised at the core and
+divergent at the edges, and the divergences are exactly where
+operational knowledge lives.
+
+Concretely:
+
+- **Quantities carry their unit** rather than assuming one
+  (`ai.cognisee.models.units`). Altitude is feet almost everywhere but
+  metres in China and parts of the former Soviet Union; runway length is
+  metres in most of the world and feet in the US; fuel is kilograms for
+  some operators and pounds for others on the same airframe; altimeter
+  settings are hectopascals or inches of mercury. Recording the unit the
+  expert used is also the honest thing to do: converting is lossy, and
+  the number they said is the number worth keeping.
+- **State-specific concepts are named, not assumed.** Approach minima
+  use the ICAO CAT I-III ladder because it is international, with an
+  `other: string` case carrying the authorisations that ladder does not
+  name (GLS; the FAA's special CAT II/III; EASA's lower-than-standard
+  minima) under the name used locally.
+- **Where a convention varies by state, record which applies.** Runway
+  numbering is magnetic in most states and true in some high-latitude
+  ones, so `RunwayDesignator` carries a `HeadingReference` rather than
+  assuming.
+- **Prefer ICAO vocabulary** for aerodrome and operational concepts —
+  `AerodromeCode`, ICAO location indicators — since that is what an
+  international operator works to. FAR/AIM is a reasonable grounding
+  source for flight-operations vocabulary, where it largely agrees with
+  ICAO, but not for aerodrome or ground-handling concepts.
+
 ## Status of these schemas
 
 **The `.hy` modules are documentation, not executable.** The

@@ -20,12 +20,12 @@ IcaoCode := wrap{string}
 # Three-letter IATA code, e.g. "LHR".
 IataCode := wrap{string}
 
-# A runway, named by its magnetic heading and side. A single physical
-# strip is two runways -- one per direction -- so "12L" and "30R" are
-# distinct Runways over shared pavement.
+# A runway, named by its heading and side. A single physical strip is
+# two runways -- one per direction -- so "12L" and "30R" are distinct
+# Runways over shared pavement.
 Runway := record{
   designator: RunwayDesignator,
-  length: units.Meters,
+  length: units.Length,
   surface: SurfaceType,
   # The lowest visibility category the runway is approved for. Absent
   # means no instrument approach is published.
@@ -34,14 +34,24 @@ Runway := record{
 # e.g. "12L". The side distinguishes parallel runways.
 RunwayDesignator := record{
   heading: RunwayHeading,
-  side: optional<RunwaySide>}
+  side: optional<RunwaySide>,
+  reference: HeadingReference}
 
-# A runway heading in tens of degrees: the magnetic heading rounded to
-# the nearest ten with the ones place dropped, so 1-36. Runway 12 points
-# at roughly 120 degrees magnetic, but its true alignment may be
-# anywhere in the surrounding arc, and the pavement marking is what is
-# authoritative -- not the arithmetic.
+# A runway heading in tens of degrees: the heading rounded to the
+# nearest ten with the ones place dropped, so 1-36. Runway 12 points at
+# roughly 120 degrees, but its true alignment may be anywhere in the
+# surrounding arc, and the pavement marking is authoritative -- not the
+# arithmetic.
+#
+# Most states number runways by magnetic heading, but some -- notably at
+# high latitudes, where magnetic variation is large and moves quickly --
+# use true. The reference is a property of the aerodrome, so it is
+# recorded on the runway rather than assumed here.
 RunwayHeading := wrap{int32}
+
+HeadingReference := union{
+  magnetic: unit,
+  true_: unit}
 
 RunwaySide := union{
   left: unit,
@@ -55,16 +65,24 @@ SurfaceType := union{
   grass: unit,
   dirt: unit}
 
-# Precision approach category. Higher categories permit lower decision
-# heights and runway visual range, which is what keeps a hub landing
-# aircraft in fog.
+# Lowest approach minima the runway is approved for, in ICAO terms.
+# Higher categories permit lower decision height and runway visual
+# range, which is what keeps a hub landing aircraft in fog.
+#
+# The CAT I-III ladder is defined by ICAO Annex 6 and is used
+# internationally. `other` carries approach types this ladder does not
+# name -- GLS, and state-specific authorisations such as the FAA's
+# special CAT II/III and EASA's lower-than-standard minima -- as the
+# name used locally, rather than forcing them into a category they do
+# not belong to.
 ApproachCategory := union{
   nonPrecision: unit,
   catI: unit,
   catII: unit,
   catIIIa: unit,
   catIIIb: unit,
-  catIIIc: unit}
+  catIIIc: unit,
+  other: string}
 
 Terminal := record{
   name: string,
