@@ -144,6 +144,12 @@ type; `=` is term-level.
 
 ## Modelling conventions
 
+**Definitions are alphabetical within a module**, and union variants
+alphabetical within a definition. A Hydra convention. Grouping by topic
+reads better while authoring and worse thereafter — with alphabetical
+order a reader can find a name without scanning, and a diff shows a real
+change rather than a reshuffle.
+
 **US spelling.** Identifiers and prose both. `meters`, not `metres` —
 the code was already right; the prose had drifted.
 
