@@ -11,7 +11,8 @@ Airport := record{
   icao: IcaoCode,
   iata: optional<IataCode>,
   name: string,
-  runways: list<Runway>}
+  runways: list<Runway>,
+  terminals: list<Terminal>}
 
 # Four-letter ICAO location indicator, e.g. "EGLL".
 IcaoCode := wrap{string}
@@ -64,3 +65,41 @@ ApproachCategory := union{
   catIIIa: unit,
   catIIIb: unit,
   catIIIc: unit}
+
+Terminal := record{
+  name: string,
+  concourses: list<Concourse>}
+
+# A pier or satellite within a terminal. Which concourse a stand belongs
+# to determines how far a connecting passenger walks, and whether they
+# change buildings -- at a hub that is the difference between a
+# connection making and missing.
+Concourse := record{
+  name: string,
+  stands: list<Stand>}
+
+# An aircraft parking position. Distinct from a gate: the stand is where
+# the aircraft parks, the gate is the passenger door serving it. A
+# remote stand has no gate, and passengers reach it by bus.
+Stand := record{
+  identifier: string,
+  # Largest aerodrome reference code the stand accepts. This is the
+  # constraint that makes wide-body parking scarce.
+  maxAerodromeCode: AerodromeCode,
+  # False for a remote stand.
+  contact: boolean,
+  # Passenger boarding bridges serving the stand. Zero when remote. A
+  # second or third bridge, and in particular an upper-deck bridge,
+  # changes how fast a large aircraft can be boarded.
+  bridges: int32}
+
+# ICAO aerodrome reference code letter. Bounds wingspan and outer main
+# gear span, and so determines which aircraft a stand, taxiway or runway
+# can take.
+AerodromeCode := union{
+  codeA: unit,
+  codeB: unit,
+  codeC: unit,
+  codeD: unit,
+  codeE: unit,
+  codeF: unit}
