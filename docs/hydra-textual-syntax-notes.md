@@ -144,11 +144,20 @@ Concretely:
   numbering is magnetic in most states and true in some high-latitude
   ones, so `RunwayDesignator` carries a `HeadingReference` rather than
   assuming.
-- **Prefer ICAO vocabulary** for aerodrome and operational concepts —
-  `AerodromeCode`, ICAO location indicators — since that is what an
-  international operator works to. FAR/AIM is a reasonable grounding
-  source for flight-operations vocabulary, where it largely agrees with
-  ICAO, but not for aerodrome or ground-handling concepts.
+- **Prefer ICAO vocabulary** where the two regimes diverge, since that
+  is what an international operator's own documentation uses. Note this
+  is about *taxonomy*, not coverage: the FAR does describe aerodromes
+  (Part 139 certification, Part 77 obstructions, Part 157
+  construction). Where it differs, it differs by carving the same
+  reality up differently — the ICAO aerodrome reference code has no FAR
+  equivalent, because the FAA uses airplane design groups (ADG I-VI) in
+  AC 150/5300-13 for the same wingspan and gear-span constraints. Pick
+  ICAO's, and name the other if it turns up.
+
+  Much of the vocabulary is shared outright. "Aerodrome" is the
+  technical term in US usage too — TAF is Terminal *Aerodrome* Forecast
+  — and appears throughout METAR/TAF and NOTAMs. FAR/AIM is a sound
+  grounding source; it simply is not the *only* one.
 
 ## Status of these schemas
 
