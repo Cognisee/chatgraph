@@ -3,7 +3,7 @@
 
 module ai.cognisee.models.aviation.site
 
-import ai.cognisee.models.units
+import ai.cognisee.models.units as units
 
 # A civil airport, identified by its ICAO code. IATA is carried too
 # because operational staff use it in speech far more often.

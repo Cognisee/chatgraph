@@ -15,6 +15,10 @@ we have already hit one case where it is out of date.
 
 ## Corrections to contribute upstream
 
+*(All three corrections below have been applied to
+`external/wiki/Textual-syntax-by-example.md` and are uncommitted, pending
+review.)*
+
 ### 1. `wrap` takes braces, not parentheses
 
 The wiki page currently shows:
@@ -49,21 +53,24 @@ What we are using, per Josh:
 ```
 module ai.cognisee.models.aviation.site
 
-import ai.cognisee.models.units
+import ai.cognisee.models.units as units
 ```
 
-Reverse-DNS namespaces, one module per file, hierarchy allowed. This is
-a genuine gap in the wiki page — a short "Modules" section with a
-two-file worked example would be a useful contribution.
+Reverse-DNS namespaces, one module per file, hierarchy allowed.
 
-**Still unconfirmed:** whether `import` permits a short prefix at the use
-site (we write `units.Meters`) or whether references must be fully
-qualified. Since §2.4 parses dotted names greedily,
-`ai.cognisee.models.units.Meters` is unambiguous without any import, so
-`import` may be sugar rather than a requirement.
+**`import ... as` is a convention Josh introduced here**, to bind a short
+local alias so references read `units.Meters` rather than repeating the
+whole namespace. Since §2.4 parses dotted names greedily,
+`ai.cognisee.models.units.Meters` is already unambiguous without any
+import — so the alias is for brevity, not disambiguation.
 
 **When contributing upstream, use a neutral namespace** — not
 `ai.cognisee`.
+
+**Status: written to the wiki.** `external/wiki/Textual-syntax-by-example.md`
+now has a §5 "Modules" covering `module`, `import` and `import ... as`,
+using `com.example.geometry` as the example namespace. Uncommitted, for
+review.
 
 ## Conventions we have settled
 
