@@ -202,6 +202,54 @@ Concretely:
   — and appears throughout METAR/TAF and NOTAMs. FAR/AIM is a sound
   grounding source; it simply is not the *only* one.
 
+## Completeness vs. populability
+
+These types are deliberately thorough, and **that is exactly what makes
+them hard to populate.** `Runway` requires a designator, a length and a
+surface; an expert who says *"I'd rather not use 12L when it's wet"* has
+supplied one field and implied a constraint. Nothing in that sentence
+gives you a length, and demanding one would force the extractor to
+invent it or drop the statement.
+
+This is the central tension in using a well-specified schema for
+knowledge capture: **a type that is complete enough to be useful as a
+model is too complete to be filled in from conversation.**
+
+Three stages, in the order they will actually happen:
+
+1. **Now — schema as documentation.** Required fields say what a runway
+   *is*. Nothing is being populated yet, so completeness costs nothing
+   and is worth having on the record.
+
+2. **The loose PG mapping.** When these project to property graphs,
+   **make all attributes optional.** A PG schema has no way to say
+   "identified by its designator, other fields unknown," so the only
+   mapping that survives contact with real extraction is a permissive
+   one. This is a known approximation, not an oversight -- record it as
+   such, so nobody later reads the optionality as a claim that a runway
+   might genuinely lack a length.
+
+3. **Later — `hydra.logic` Assertions.** The module under development
+   supports referring to a `Runway` by its designator alone, never
+   mentioning the required fields. Assertions are small graphs with
+   **labeled nulls** for unknown information: the unknown length is an
+   existentially quantified variable rather than an absent field. That
+   is the honest representation, and it preserves the distinction the
+   optional-everything mapping throws away -- *not stated* versus *known
+   not to apply*.
+
+**What this means for authoring now:** keep the types complete. Do not
+pre-weaken them to `optional` in anticipation of the extractor, because
+the weakening belongs in the projection, not in the model. The schema
+should say what is true of the world; the mapping decides what can be
+left unsaid.
+
+**One consequence worth watching.** Labeled nulls make identity harder:
+two assertions about "runway 12L" are about the same runway only if
+something says so. Content-derived ids are one answer, and the web
+gate's identity discipline already does something similar. Worth
+revisiting when Assertions land.
+
 ## Status of these schemas
 
 **The `.hy` modules are documentation, not executable.** The
