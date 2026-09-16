@@ -117,6 +117,9 @@ type; `=` is term-level.
 
 ## Modelling conventions
 
+**US spelling.** Identifiers and prose both. `meters`, not `metres` —
+the code was already right; the prose had drifted.
+
 **International neutrality.** These schemas must not assume a
 jurisdiction. Aviation regulation is ICAO-harmonised at the core and
 divergent at the edges, and the divergences are exactly where
@@ -126,8 +129,8 @@ Concretely:
 
 - **Quantities carry their unit** rather than assuming one
   (`ai.cognisee.models.units`). Altitude is feet almost everywhere but
-  metres in China and parts of the former Soviet Union; runway length is
-  metres in most of the world and feet in the US; fuel is kilograms for
+  meters in China and parts of the former Soviet Union; runway length is
+  meters in most of the world and feet in the US; fuel is kilograms for
   some operators and pounds for others on the same airframe; altimeter
   settings are hectopascals or inches of mercury. Recording the unit the
   expert used is also the honest thing to do: converting is lossy, and

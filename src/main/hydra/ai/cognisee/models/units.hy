@@ -1,11 +1,11 @@
 # Physical quantities, carrying their unit.
 #
 # Aviation is not unit-consistent, and cannot be made so by choosing a
-# side. Altitude is in feet almost everywhere but metres in China and
-# parts of the former Soviet Union; runway length is metres in most of
+# side. Altitude is in feet almost everywhere but meters in China and
+# parts of the former Soviet Union; runway length is meters in most of
 # the world and feet in the United States; fuel is kilograms for some
 # operators and pounds for others, on the same airframe. Visibility is
-# metres in most states and statute miles in the US.
+# meters in most states and statute miles in the US.
 #
 # So a quantity records the unit it was stated in rather than assuming
 # one. Converting is a separate operation, and a lossy one -- the value
