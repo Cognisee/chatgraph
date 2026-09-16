@@ -1,0 +1,118 @@
+# Aircraft: the types an operator flies, the individual airframes, and
+# the cabin arrangements fitted to them.
+#
+# The distinction between a type, a variant and a tail matters
+# operationally. A substitution decision is usually framed as "can this
+# tail fly that rotation", but the constraints come from three different
+# levels: the type fixes crew qualification, the variant fixes range and
+# capacity, and the tail fixes cabin product and maintenance state.
+
+module ai.cognisee.models.aviation.airline.fleet
+
+import ai.cognisee.models.units as units
+
+# An individual airframe, identified by its registration. The tail is
+# what actually gets assigned to a rotation.
+Aircraft := record{
+  cabin: CabinConfiguration,
+  # Where the aircraft currently is, as an ICAO code. Absent while
+  # airborne.
+  # QUESTION: should position be here at all, or does it belong to the
+  # operational state rather than the airframe?
+  location: optional<string>,
+  # Deferred defects carried under the operator's minimum equipment
+  # list. Each one is legal to fly with, but they accumulate, and an
+  # experienced controller knows which combinations make an aircraft a
+  # poor choice for a particular sector even when each item is
+  # individually acceptable.
+  openDefects: list<Defect>,
+  registration: Registration,
+  status: AirworthinessStatus,
+  variant: AircraftVariant}
+
+# An aircraft type as certified: the level at which a pilot type rating
+# applies. A 777 rating covers every 777 variant; it does not cover an
+# A380. This is the constraint that makes crew non-substitutable across
+# types during a disruption.
+AircraftType := record{
+  # ICAO type designator, e.g. "A388", "B77W".
+  icaoType: string,
+  manufacturer: string,
+  # The common name an operator uses in speech: "A380", "triple seven".
+  name: string}
+
+# A specific model within a type, which is what fixes range, capacity
+# and performance. The 777-300ER and the 777-200LR share a type rating
+# and almost nothing else operationally.
+AircraftVariant := record{
+  # Largest aerodrome reference code the variant requires. Code F is
+  # what limits an A380 to a small number of stands.
+  # QUESTION: this is really a derived property of wingspan and gear
+  # span. Keep the code, or the dimensions it comes from?
+  aerodromeCode: string,
+  aircraftType: AircraftType,
+  maximumRange: units.Length,
+  maximumTakeoffMass: units.Mass,
+  name: string}
+
+# Whether the aircraft can currently be dispatched.
+AirworthinessStatus := union{
+  # In scheduled or unscheduled maintenance.
+  maintenance: unit,
+  # Grounded and not expected back soon: a long repair, a cabin
+  # retrofit, or storage.
+  outOfService: unit,
+  serviceable: unit,
+  # Technically unserviceable and awaiting a decision or a part. This is
+  # the state that starts a substitution problem.
+  unserviceable: unit}
+
+# The physical cabin fitted to one airframe. Two aircraft of the same
+# variant may carry different products, and that difference is not
+# visible in a seat count: an aircraft with no first class cannot take a
+# first class passenger load, however many seats it has.
+CabinConfiguration := record{
+  cabins: list<CabinSection>,
+  name: string,
+  totalSeats: int32}
+
+# One class of service within a cabin.
+CabinSection := record{
+  # Which deck, on a two-deck aircraft. Absent when the aircraft has
+  # one deck.
+  deck: optional<Deck>,
+  seats: int32,
+  travelClass: TravelClass}
+
+Deck := union{
+  lower: unit,
+  main: unit,
+  upper: unit}
+
+# A deferred or active technical defect.
+Defect := record{
+  # Whether the defect is deferrable under the minimum equipment list,
+  # and until when.
+  deferral: optional<Deferral>,
+  description: string,
+  # Free text: the ATA chapter the defect belongs to, where known.
+  system: optional<string>}
+
+Deferral := record{
+  # The MEL category, which fixes how long the defect may be carried:
+  # A, B, C or D in the standard scheme.
+  category: string,
+  # Flight cycles or calendar days remaining, as stated.
+  # QUESTION: worth modelling the two rectification-interval kinds
+  # separately, or is free text enough at this stage?
+  remaining: string}
+
+# An aircraft registration, e.g. "G-ABCD". Unique to one airframe, and
+# the identifier controllers actually use.
+Registration := wrap{string}
+
+TravelClass := union{
+  business: unit,
+  economy: unit,
+  first: unit,
+  premiumEconomy: unit}

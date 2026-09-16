@@ -250,6 +250,19 @@ something says so. Content-derived ids are one answer, and the web
 gate's identity discipline already does something similar. Worth
 revisiting when Assertions land.
 
+## Tooling
+
+`bin/check_hy.py` enforces the conventions above across
+`src/main/hydra/`: alphabetical definitions, alphabetical fields,
+ASCII only, no consecutive capitals in identifiers. Run it after
+editing.
+
+`bin/sort_hy.py <file>...` rewrites a module into alphabetical order,
+keeping each comment attached to the definition or field it documents.
+Sorting by hand is error-prone -- the checker caught eleven ordering
+violations in the first pass of the aviation modules that I had missed
+by eye.
+
 ## Status of these schemas
 
 **The `.hy` modules are documentation, not executable.** The

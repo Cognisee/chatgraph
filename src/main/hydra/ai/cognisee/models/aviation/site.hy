@@ -90,11 +90,11 @@ RunwayDesignator := record{
 # use true. The alignment carries its own reference, so a designator
 # does not have to assume one.
 RunwayHeading := record{
-  # The two-digit number as painted, 1-36.
-  designation: int32,
   # The alignment the designation was derived from, which says whether
   # it is a magnetic or a true reference.
-  alignment: units.Angle}
+  alignment: units.Angle,
+  # The two-digit number as painted, 1-36.
+  designation: int32}
 
 RunwaySide := union{
   center: unit,
