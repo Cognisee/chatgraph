@@ -15,9 +15,22 @@ module ai.cognisee.models.units
 
 import ai.cognisee.models.quantity as quantity
 
-# An angle in degrees, 0-359. Whether it is referenced to magnetic or
-# true north is a property of the context, and is recorded there.
-Degrees := wrap{int32}
+Angle := quantity.Quantity<decimal, AngleUnit>
+
+# Degrees are the only angular unit in operational use here -- nobody
+# quotes a heading in radians -- but the *reference* is a real
+# distinction and a real source of error: 090 true and 090 magnetic are
+# different directions, and the variation between them changes with
+# place and time. Carrying it in the unit makes the two
+# non-interchangeable.
+#
+# `grid` appears in polar operations, where meridians converge too
+# sharply for magnetic or true headings to be practical.
+AngleUnit := union{
+  degreesGrid: unit,
+  degreesMagnetic: unit,
+  degreesTrue: unit,
+  radians: unit}
 
 Duration := quantity.Quantity<decimal, DurationUnit>
 

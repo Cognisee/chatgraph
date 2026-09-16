@@ -53,11 +53,6 @@ Concourse := record{
   name: string,
   stands: list<Stand>}
 
-# Whether a heading is referenced to magnetic or true north.
-HeadingReference := union{
-  magnetic: unit,
-  true_: unit}
-
 # Three-letter IATA code, e.g. "LHR".
 IataCode := wrap{string}
 
@@ -78,7 +73,6 @@ Runway := record{
 # e.g. "12L". The side distinguishes parallel runways.
 RunwayDesignator := record{
   heading: RunwayHeading,
-  reference: HeadingReference,
   side: optional<RunwaySide>}
 
 # A runway heading in tens of degrees: the heading rounded to the
@@ -89,9 +83,14 @@ RunwayDesignator := record{
 #
 # Most states number runways by magnetic heading, but some -- notably at
 # high latitudes, where magnetic variation is large and moves quickly --
-# use true. The reference is a property of the aerodrome, so it is
-# recorded on the designator rather than assumed here.
-RunwayHeading := wrap{int32}
+# use true. The alignment carries its own reference, so a designator
+# does not have to assume one.
+RunwayHeading := record{
+  # The two-digit number as painted, 1-36.
+  designation: int32,
+  # The alignment the designation was derived from, which says whether
+  # it is a magnetic or a true reference.
+  alignment: units.Angle}
 
 RunwaySide := union{
   center: unit,
