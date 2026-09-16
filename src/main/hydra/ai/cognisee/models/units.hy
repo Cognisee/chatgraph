@@ -81,5 +81,5 @@ SpeedUnit := union{
 Temperature := quantity.Quantity<decimal, TemperatureUnit>
 
 TemperatureUnit := union{
-  celsius: unit,
-  fahrenheit: unit}
+  degreesCelsius: unit,
+  degreesFahrenheit: unit}

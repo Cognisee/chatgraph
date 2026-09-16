@@ -31,17 +31,21 @@ Airport := record{
 # range, which is what keeps a hub landing aircraft in fog.
 #
 # The CAT I-III ladder is defined by ICAO Annex 6 and is used
-# internationally. `other` carries approach types this ladder does not
-# name -- GLS, and state-specific authorizations such as the FAA's
-# special CAT II/III and EASA's lower-than-standard minima -- as the
-# name used locally, rather than forcing them into a category they do
-# not belong to.
+# internationally. The variants are spelled with arabic numerals --
+# cat3a, not catIIIa -- because runs of consecutive capitals do not
+# survive conversion between naming conventions. The documents write
+# them in roman numerals; the identifiers do not have to.
+#
+# `other` carries approach types this ladder does not name -- GLS, and
+# state-specific authorizations such as the FAA's special CAT II/III and
+# EASA's lower-than-standard minima -- as the name used locally, rather
+# than forcing them into a category they do not belong to.
 ApproachCategory := union{
-  catI: unit,
-  catII: unit,
-  catIIIa: unit,
-  catIIIb: unit,
-  catIIIc: unit,
+  cat1: unit,
+  cat2: unit,
+  cat3a: unit,
+  cat3b: unit,
+  cat3c: unit,
   nonPrecision: unit,
   other: string}
 

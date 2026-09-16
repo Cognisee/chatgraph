@@ -150,6 +150,16 @@ reads better while authoring and worse thereafter — with alphabetical
 order a reader can find a name without scanning, and a diff shows a real
 change rather than a reshuffle.
 
+**No consecutive capitals in identifiers.** They do not survive
+conversion between naming conventions: `catIIIa` becomes `CAT_IIIA` or
+`catIiia` or `cat_i_i_i_a` depending on the target, and none of those
+convert back. Approach categories are therefore `cat3a`, not `catIIIa`,
+even though the source documents use roman numerals. The same rule
+bites acronyms — prefer `icaoCode` over `ICAOCode`.
+
+Prose in comments keeps the conventional spelling; only identifiers are
+constrained.
+
 **US spelling.** Identifiers and prose both. `meters`, not `metres` —
 the code was already right; the prose had drifted.
 
