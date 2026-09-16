@@ -42,19 +42,13 @@ Meters := wrap{int32}
 Confirmed by Josh. The wiki is wrong here. Whether the *term*-level form
 also changed is not confirmed — we have only authored types so far.
 
-### 2. Applying a user-defined parameterized type is undocumented
+### 2. Applying a user-defined parameterized type was undocumented
 
-The wiki shows how to *declare* a polymorphic type:
+The wiki showed how to *declare* a polymorphic type (`Pair := forall a,
+b. (a, b)`) but never how to **apply** one — `<...>` appeared only on
+builtins.
 
-```
-Pair := forall a, b. (a, b)
-```
-
-It never shows how to **apply** one. `<...>` appears only on builtins
-(`list<t>`, `map<k, v>`, `optional<t>`, `either<a, b>`); no example in
-either document writes `SomeUserType<arg>`.
-
-We are assuming the natural extension — the same angle brackets:
+**Settled with Josh: angle brackets, the same as the builtins.**
 
 ```
 Quantity := forall v, u. record{value: v, unit: u}
@@ -62,15 +56,18 @@ Quantity := forall v, u. record{value: v, unit: u}
 Length := Quantity<decimal, LengthUnit>
 ```
 
-**Unconfirmed.** If application uses different syntax, or if the printer
-does not yet emit it, `units.hy` needs changing. The alternative shapes
-would be term-level type application spelled `⟨...⟩` (§2.3 reserves
-those brackets for *terms*, so probably not), or no surface syntax at
-all yet.
+The alternative considered was `Quantity @ decimal @ SpeedUnit`. Angle
+brackets win on two grounds: `@` is already the annotation marker
+(§2.3), so `T @ X` would be ambiguous with an annotated type and need
+lookahead to disambiguate; and `list<string>` / `map<k, v>` are the same
+construct, so one application syntax means the builtins are not
+special-cased.
 
-Worth documenting upstream once settled: declaring a polymorphic type
-without being able to apply it is not much use, so the page likely wants
-one line showing application right after the `forall` examples.
+The one cost is that `<` and `>` are the classic parsing ambiguity with
+comparison operators — the reason Rust needs turbofish. Hydra has no
+infix comparison at the type level, so it may never bite.
+
+**Documented upstream**, right after the `forall` examples.
 
 ### 3. Module declarations and imports are undocumented
 
