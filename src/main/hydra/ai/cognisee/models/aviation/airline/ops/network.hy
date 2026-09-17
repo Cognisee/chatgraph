@@ -97,9 +97,9 @@ FlightLeg := record{
   aircraft: optional<fleet.Registration>,
   # The stand actually assigned, where known. Stand availability is a
   # real constraint on which aircraft can operate a leg.
-  arrivalStand: optional<string>,
+  arrivalStand: optional<site.Stand>,
   date: time.Date,
-  departureStand: optional<string>,
+  departureStand: optional<site.Stand>,
   # Estimated or actual times, as they become known. Absent until they
   # are.
   estimatedArrival: optional<time.Timespec>,
@@ -142,11 +142,11 @@ MinimumConnectTime := record{
   airport: site.IcaoCode,
   # Narrower cases: between terminals, or between specific concourses.
   # Absent when the figure applies station-wide.
-  fromArea: optional<string>,
+  fromArea: optional<TransferArea>,
   # Whether this is the published standard or an operator's own, which
   # may be more conservative.
   source: ConnectTimeSource,
-  toArea: optional<string>,
+  toArea: optional<TransferArea>,
   value: units.Duration}
 
 # Who is on board, in the terms that bear on a recovery decision.
@@ -156,7 +156,7 @@ MinimumConnectTime := record{
 # other flights. A full aircraft of locals is an easier problem than a
 # half-full one feeding a bank.
 PassengerLoad := record{
-  byClass: map<string, int32>,
+  byClass: map<fleet.TravelClass, int32>,
   # Passengers making an onward connection at the destination. These are
   # the ones whose disruption propagates.
   connecting: optional<int32>,
@@ -172,3 +172,14 @@ Rotation := record{
   aircraft: fleet.Registration,
   date: time.Date,
   legs: list<FlightLeg>}
+
+# One end of a connection, when a minimum connect time is stated more
+# narrowly than station-wide.
+#
+# A terminal or a concourse rather than a free string, because the
+# figure is published against a named part of the airport and the two
+# levels are not interchangeable: a cross-terminal transfer and a
+# cross-concourse one are different walks.
+TransferArea := union{
+  concourse: site.Concourse,
+  terminal: site.Terminal}

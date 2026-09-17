@@ -10,6 +10,8 @@
 module ai.cognisee.models.aviation.airline.ops.ground
 
 import ai.cognisee.models.time as time
+import ai.cognisee.models.aviation.airline.ops.network as network
+import ai.cognisee.models.aviation.site as site
 import ai.cognisee.models.units as units
 
 # A single bag and its itinerary. Modelled individually because the
@@ -21,7 +23,7 @@ import ai.cognisee.models.units as units
 # BagScan.
 Bag := record{
   # Where the bag is meant to end up.
-  destination: string,
+  destination: site.IcaoCode,
   identifier: string,
   # True when the bag has to move between two flights at a hub. This is
   # the case that generates most mishandling.
@@ -46,7 +48,7 @@ GroundActivity := record{
   # Activities this one cannot start before. The critical path runs
   # through these dependencies, and an experienced controller knows
   # which ones actually bind on a given day.
-  dependsOn: list<string>,
+  dependsOn: list<GroundActivity>,
   kind: GroundActivityKind,
   # When the plan says it should happen.
   plannedEnd: time.Timespec,
@@ -75,11 +77,11 @@ GroundActivityKind := union{
 Turnaround := record{
   activities: list<GroundActivity>,
   # The leg arriving, and the leg the same aircraft then operates.
-  inboundLeg: string,
+  inboundLeg: network.FlightLeg,
   # The minimum ground time the operator publishes for this aircraft at
   # this station. A planning figure rather than an achievable one: it
   # assumes everything goes right, which is why experienced staff
   # schedule above it.
   minimumGroundTime: units.Duration,
-  outboundLeg: string,
-  stand: optional<string>}
+  outboundLeg: network.FlightLeg,
+  stand: optional<site.Stand>}

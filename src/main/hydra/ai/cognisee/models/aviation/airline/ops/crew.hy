@@ -9,6 +9,7 @@
 module ai.cognisee.models.aviation.airline.ops.crew
 
 import ai.cognisee.models.aviation.airline.fleet as fleet
+import ai.cognisee.models.aviation.airline.ops.network as network
 import ai.cognisee.models.aviation.site as site
 import ai.cognisee.models.time as time
 import ai.cognisee.models.units as units
@@ -99,7 +100,7 @@ ExtensionAuthority := union{
 Pairing := record{
   crew: list<CrewMember>,
   identifier: string,
-  legs: list<string>}
+  legs: list<network.FlightLeg>}
 
 # Qualification on an aircraft type. Type ratings are per type, not per
 # variant: a 777 rating covers every 777. Cross-crew qualification

@@ -156,11 +156,37 @@ country level, not as codes), `Curfew.exceptionAuthority`, and the
 `other:` case of a union, which exists precisely to carry what the
 enum does not name.
 
-Still open: several identifier fields (`legs`, `affectedLegs`,
-`dependsOn`, stand references) are strings holding foreign keys. That is
-a deliberate flattening -- the alternative is a reference type or a
-direct object, and which to use depends on how the graph is finally
-encoded. See the note in the exclusions below.
+### A reference is the thing, not an identifier for it
+
+These modules are the **logical** schema. A field that names another
+entity is typed as that entity -- `Action.affectedLegs` is
+`list<network.FlightLeg>`, because it is literally a list of flight
+legs. Not `list<string>`, and not a `FlightLegId` wrapper: an
+identifier type is a *physical* schema concern, and introducing one here
+would bake a storage decision into the model.
+
+This does not force values to be inlined. An instance is free to bind a
+variable term for a given leg rather than nest a literal one, which is
+also what makes self-reference well-founded: `Action.supersedes` is
+`optional<Action>` and `GroundActivity.dependsOn` is
+`list<GroundActivity>` without either type being infinite.
+
+Applied across the whole schema: `affectedLegs`, `directlyAffected`,
+`supersedes`, `Attempt.action`, `Advisory.action`, `Pairing.legs`,
+`dependsOn`, `inboundLeg`, `outboundLeg`, the stand fields,
+`BagScan.bag`, `BagScan.leg`, `Bag.destination`,
+`CrewPosition.crewMember`, `OperationsStaff.station`,
+`MinimumConnectTime.fromArea`/`toArea` (via a new `TransferArea`),
+`AircraftType.icaoType` (via `IcaoTypeDesignator`), and
+`PassengerLoad.byClass`, now keyed by `TravelClass` rather than by a
+string.
+
+The dependency graph stays acyclic; this was checked, not assumed.
+
+What is legitimately still a string: an entity's *own* identifier, a
+name, a free-text description or stated reason, `Advisory.content`,
+`DestinationRestriction.destinations` (stated at country level, not as
+codes), and the `other:` case of a union.
 
 ## Things deliberately left out
 
@@ -174,14 +200,6 @@ encoded. See the note in the exclusions below.
   as probable belongs to `hydra.logic`, not here.
 - **`Timespec` duplication.** Resolved: `ai.cognisee.models.time` now
   imports `hydra.time` rather than restating the type.
-- **A reference type for cross-entity identifiers.** Fields naming
-  another entity (`Action.affectedLegs`, `Pairing.legs`,
-  `GroundActivity.dependsOn`, the stand references) are strings holding
-  what amounts to a foreign key. The alternatives are a wrapper type per
-  referent or a direct object reference, and the right choice depends on
-  how these modules are finally encoded into a property graph -- which
-  is what Hydra 0.18.1 is expected to settle. Left flat until then,
-  deliberately rather than by oversight.
 - **Cargo**, beyond baggage. No scenario needs it.
 - **Fares, revenue, and commercial policy.** Route profitability appears
   in the research as an explicit tiebreaker in recovery decisions, but

@@ -14,6 +14,7 @@
 module ai.cognisee.models.aviation.airline.ops.disruption
 
 import ai.cognisee.models.aviation.airline.ops.staff as staff
+import ai.cognisee.models.aviation.airline.ops.network as network
 import ai.cognisee.models.aviation.site as site
 import ai.cognisee.models.aviation.weather as weather
 import ai.cognisee.models.time as time
@@ -28,7 +29,7 @@ import ai.cognisee.models.units as units
 # and which no operational system retains.
 Action := record{
   # Legs this action affects. An action is rarely local.
-  affectedLegs: list<string>,
+  affectedLegs: list<network.FlightLeg>,
   # Who may actually take this. When it is not operationsControl, the
   # operation's real move is what it tells the decision-maker -- see
   # Advisory.
@@ -44,7 +45,7 @@ Action := record{
   # divert... your decision has to be recalculated." Each attempt
   # consumes fuel and time, so the option set on the third approach is
   # not the option set on the first.
-  supersedes: optional<string>,
+  supersedes: optional<Action>,
   # Whether it was taken, and when.
   takenAt: optional<time.Timespec>}
 
@@ -107,7 +108,7 @@ ActionStatus := union{
 # believed, intended or inferred is not, and belongs to hydra.logic.
 Advisory := record{
   # The action this bears on.
-  action: string,
+  action: Action,
   # What was communicated.
   content: string,
   # Whom it was given to.
@@ -149,7 +150,7 @@ Alternate := record{
 # and elapsed time are gone.
 Attempt := record{
   # What was tried.
-  action: string,
+  action: Action,
   # Fuel consumed by this attempt, where known. Each failed approach
   # narrows what remains possible.
   fuelBurned: optional<units.Mass>,
@@ -257,7 +258,7 @@ Disruption := record{
   # action possible.
   detectedAt: time.Timespec,
   # Legs directly affected, before any cascade.
-  directlyAffected: list<string>,
+  directlyAffected: list<network.FlightLeg>,
   identifier: string,
   severity: DisruptionSeverity}
 

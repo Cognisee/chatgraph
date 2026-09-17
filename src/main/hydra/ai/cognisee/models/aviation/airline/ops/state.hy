@@ -21,6 +21,9 @@
 module ai.cognisee.models.aviation.airline.ops.state
 
 import ai.cognisee.models.aviation.airline.fleet as fleet
+import ai.cognisee.models.aviation.airline.ops.crew as crew
+import ai.cognisee.models.aviation.airline.ops.ground as ground
+import ai.cognisee.models.aviation.airline.ops.network as network
 import ai.cognisee.models.aviation.site as site
 import ai.cognisee.models.time as time
 
@@ -53,10 +56,9 @@ AircraftStatus := record{
 # different problem from one scanned at the aircraft side. Modelling
 # position as a scan rather than as a field makes the gap visible.
 BagScan := record{
-  # The bag's identifier.
-  bag: string,
+  bag: ground.Bag,
   # The leg it was travelling on or waiting for, where known.
-  leg: optional<string>,
+  leg: optional<network.FlightLeg>,
   observedAt: time.Timespec,
   status: BagStatus}
 
@@ -80,7 +82,7 @@ BagStatus := union{
 # out of position is one of the commonest reasons a leg cannot be
 # covered, and it is a fact about today rather than about the person.
 CrewPosition := record{
-  crewMember: string,
+  crewMember: crew.CrewMember,
   observedAt: time.Timespec,
   # The station.
   station: site.IcaoCode}

@@ -36,8 +36,7 @@ Aircraft := record{
 # A380. This is the constraint that makes crew non-substitutable across
 # types during a disruption.
 AircraftType := record{
-  # ICAO type designator, e.g. "A388", "B77W".
-  icaoType: string,
+  icaoType: IcaoTypeDesignator,
   manufacturer: string,
   # The common name an operator uses in speech: "A380", "triple seven".
   name: string}
@@ -162,6 +161,10 @@ DestinationRestriction := record{
   # Why the restriction exists, where stated. Usually a certification or
   # an equipment fit; occasionally a bilateral or a sanction.
   reason: optional<string>}
+
+# An ICAO aircraft type designator, e.g. "A388", "B77W". Drawn from
+# ICAO Doc 8643, so an identifier from a registry rather than free text.
+IcaoTypeDesignator := wrap{string}
 
 # What remains of a rectification interval, in the unit it is counted
 # in.

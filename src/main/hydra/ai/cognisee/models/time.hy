@@ -87,4 +87,3 @@ TimeReference := record{
 # revised as states change their rules, so enumerating it here would
 # guarantee this module falls out of date.
 TimeZone := wrap{string}
-

@@ -17,6 +17,8 @@
 
 module ai.cognisee.models.aviation.airline.ops.staff
 
+
+import ai.cognisee.models.aviation.site as site
 import ai.cognisee.models.time as time
 
 # The roles that participate in operational decisions.
@@ -49,7 +51,7 @@ OperationsStaff := record{
   # Where this person works from. A hub controller and a station manager
   # see the same disruption differently, and where they sit is most of
   # the reason.
-  station: optional<string>}
+  station: optional<site.IcaoCode>}
 
 # A working period. Recorded because handovers are where operational
 # context is lost, so knowing that a decision spanned one is worth
