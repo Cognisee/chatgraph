@@ -87,7 +87,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.control.module.hydra</string>
+					<string>keyword.control.hydra</string>
 				</dict>
 				<key>2</key>
 				<dict>
@@ -105,7 +105,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.control.import.hydra</string>
+					<string>keyword.control.hydra</string>
 				</dict>
 				<key>2</key>
 				<dict>
@@ -115,12 +115,12 @@
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.control.import.hydra</string>
+					<string>keyword.control.hydra</string>
 				</dict>
 				<key>4</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.namespace.alias.hydra</string>
+					<string>variable.other.namespace.hydra</string>
 				</dict>
 			</dict>
 		</dict>
@@ -181,14 +181,14 @@
 		<key>literalType</key>
 		<dict>
 			<key>name</key>
-			<string>support.type.primitive.hydra</string>
+			<string>storage.type.primitive.hydra</string>
 			<key>match</key>
 			<string>\b(bigint|binary|boolean|decimal|float32|float64|int8|int16|int32|int64|string|uint8|uint16|uint32|uint64|unit|void)\b</string>
 		</dict>
 		<key>constructor</key>
 		<dict>
 			<key>name</key>
-			<string>support.type.constructor.hydra</string>
+			<string>storage.type.hydra</string>
 			<key>match</key>
 			<string>\b(effect|either|list|map|optional|record|set|union|wrap)\b</string>
 		</dict>
@@ -211,8 +211,6 @@
 			<key>patterns</key>
 			<array>
 				<dict>
-					<key>name</key>
-					<string>constant.numeric.suffixed.hydra</string>
 					<key>match</key>
 					<string>\b(-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)(:)(int8|int16|int32|int64|uint8|uint16|uint32|uint64|float32|float64|binary)\b</string>
 					<key>captures</key>
@@ -230,13 +228,13 @@
 						<key>3</key>
 						<dict>
 							<key>name</key>
-							<string>support.type.primitive.hydra</string>
+							<string>storage.type.primitive.hydra</string>
 						</dict>
 					</dict>
 				</dict>
 				<dict>
 					<key>name</key>
-					<string>constant.numeric.decimal.hydra</string>
+					<string>constant.numeric.hydra</string>
 					<key>match</key>
 					<string>\b-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?\b</string>
 				</dict>
@@ -302,7 +300,7 @@
 						<key>1</key>
 						<dict>
 							<key>name</key>
-							<string>entity.name.namespace.alias.hydra</string>
+							<string>variable.other.namespace.hydra</string>
 						</dict>
 						<key>2</key>
 						<dict>
@@ -312,13 +310,13 @@
 						<key>3</key>
 						<dict>
 							<key>name</key>
-							<string>entity.name.type.reference.hydra</string>
+							<string>entity.name.type.hydra</string>
 						</dict>
 					</dict>
 				</dict>
 				<dict>
 					<key>name</key>
-					<string>entity.name.type.reference.hydra</string>
+					<string>entity.name.type.hydra</string>
 					<key>match</key>
 					<string>\b[A-Z][A-Za-z0-9]*\b</string>
 				</dict>
@@ -333,7 +331,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>variable.other.member.hydra</string>
+					<string>variable.other.key.hydra</string>
 				</dict>
 			</dict>
 		</dict>

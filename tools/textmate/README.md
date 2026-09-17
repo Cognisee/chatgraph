@@ -37,6 +37,22 @@ The grammar is in **plist** form (`.tmLanguage`), which is what every
 bundled grammar uses. A JSON grammar was tried first and did not load on
 IDEA 2021.2.3, so if you adapt this bundle, keep the plist.
 
+### Scope naming
+
+Scopes use roots IDEA's TextMate theme actually maps -- `keyword`,
+`storage.type`, `entity.name`, `variable.other`, `constant`, `comment`,
+`string`. An invented root such as `support.type.constructor` parses
+fine and produces no colour at all, which looks identical to a broken
+rule.
+
+When adding a pattern, copy a scope root from a bundled grammar rather
+than inventing one. IDEA ships several under
+`Contents/plugins/textmate/lib/bundles/` -- TOML's is short and readable.
+
+Colours per scope are set in **Settings → Editor → Color Scheme →
+TextMate**, so a scope that maps to nothing in the active scheme will
+still look plain.
+
 ### If comments are not coloured but other things are
 
 Check that `repository` still has a `comment` key. TextMate uses
