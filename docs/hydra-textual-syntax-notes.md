@@ -250,6 +250,18 @@ something says so. Content-derived ids are one answer, and the web
 gate's identity discipline already does something similar. Worth
 revisiting when Assertions land.
 
+## Editor support
+
+`tools/textmate/` holds a TextMate bundle giving `.hy` files syntax
+highlighting in IntelliJ IDEA (Settings -> Editor -> TextMate Bundles).
+Highlighting only -- no navigation or error checking. Its keyword lists
+come from the spec's reserved words rather than from our files, so it
+covers forms we have not written yet. See that directory's README for
+install steps and limits.
+
+Note the extension collides with the Hy Lisp dialect; if a Hy plugin is
+installed it will claim `*.hy` first.
+
 ## Tooling
 
 `bin/check_hy.py` enforces the conventions above across
