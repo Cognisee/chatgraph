@@ -9,6 +9,7 @@
 
 module ai.cognisee.models.aviation.airline.fleet
 
+import ai.cognisee.models.aviation.site as site
 import ai.cognisee.models.units as units
 
 # An individual airframe, identified by its registration. The tail is
@@ -44,11 +45,16 @@ AircraftType := record{
 # and performance. The 777-300ER and the 777-200LR share a type rating
 # and almost nothing else operationally.
 AircraftVariant := record{
-  # Largest aerodrome reference code the variant requires. Code F is
-  # what limits an A380 to a small number of stands.
-  # QUESTION: this is really a derived property of wingspan and gear
-  # span. Keep the code, or the dimensions it comes from?
-  aerodromeCode: string,
+  # Aerodrome reference code the variant requires: the ICAO Annex 14
+  # size class, not a location identifier. Code F is what limits an
+  # A380 to a small number of stands.
+  #
+  # The code, not the wingspan and gear span it is drawn from. A code is
+  # an identifier; the dimension bounds behind it are reference data to
+  # be looked up, not facts to duplicate onto every airframe. Same enum
+  # as Stand.maxAerodromeCode, so the two are directly comparable --
+  # which is the whole point of the classification.
+  aerodromeCode: site.AerodromeCode,
   aircraftType: AircraftType,
   maximumRange: units.Length,
   maximumTakeoffMass: units.Mass,

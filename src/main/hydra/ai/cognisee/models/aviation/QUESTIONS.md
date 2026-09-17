@@ -19,7 +19,6 @@ the invariant and exclusions sections below.
 | Tag | Question | For |
 |---|---|---|
 | `Q-BANK` | Is a connecting bank a real operational object? | controller |
-| `Q-CODE` | Aerodrome code letter, or the dimensions it derives from? | us |
 | `Q-DEFERRAL` | Deferral intervals: free text, or cycles vs. days? | us |
 | `Q-LOCALTIME` | Should `LocalTime`'s zone be optional or mandatory? | us |
 | `Q-AUTHORITY` | Where does decision authority escalate? | controller |
@@ -39,13 +38,6 @@ operator names and manages. Two independent sources reverse-engineered
 four banks at a major hub from schedule data; neither found the airline
 publishing them. *Good question for a controller: do you name your
 banks?*
-
-**Q-CODE. `AerodromeCode` on the variant: code letter, or the
-dimensions?** The code is derived from wingspan and outer main gear
-span. Keeping the derived letter is what people say; keeping the
-dimensions is what is true. Currently the letter, as a string on
-`AircraftVariant` and as an enum on `Stand` -- which is an inconsistency
-worth resolving.
 
 **Q-DEFERRAL. Deferral intervals as free text.** `Deferral.remaining` is
 a string. The real thing is either flight cycles or calendar days, with

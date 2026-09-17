@@ -6,10 +6,26 @@ module ai.cognisee.models.aviation.site
 import ai.cognisee.models.time as time
 import ai.cognisee.models.units as units
 
-# ICAO aerodrome reference code letter. Bounds wingspan and outer main
-# gear span, and so determines which aircraft a stand, taxiway or runway
-# can take. The FAA uses airplane design groups (ADG I-VI) for the same
+# ICAO Annex 14 aerodrome reference code letter: a size class, and not
+# to be confused with a location identifier -- IcaoCode and IataCode
+# name a place, this classifies one by the aircraft it can physically
+# accept.
+#
+# The letter bounds wingspan and outer main gear span, and so determines
+# which aircraft a stand, taxiway or runway can take. Code C is roughly
+# a 737 or A320; code E a 777 or 747; code F the top bracket, 65-80m
+# wingspan, which in practice means the A380 and is why its parking is
+# scarce. The FAA uses airplane design groups (ADG I-VI) for the same
 # constraints; this is the international form.
+#
+# Stored as the code itself, not as the dimension bounds behind it: a
+# code is an identifier, and what it permits is reference data to be
+# looked up rather than duplicated wherever the code appears.
+#
+# Only the letter. The full reference code is a number 1-4 for reference
+# field length plus this letter; the number is omitted because the
+# scenarios turn on parking and taxiway compatibility, not on runway
+# length adequacy.
 AerodromeCode := union{
   codeA: unit,
   codeB: unit,
