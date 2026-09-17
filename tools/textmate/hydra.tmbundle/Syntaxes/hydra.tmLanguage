@@ -71,6 +71,13 @@
 	</array>
 	<key>repository</key>
 	<dict>
+		<key>comment</key>
+		<dict>
+			<key>name</key>
+			<string>comment.line.number-sign.hydra</string>
+			<key>match</key>
+			<string>#.*$</string>
+		</dict>
 		<key>module</key>
 		<dict>
 			<key>match</key>

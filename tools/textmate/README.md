@@ -34,9 +34,18 @@ grammar being wrong. In rough order of likelihood:
 3. **Stale registration.** Remove the bundle, Apply, re-add, Apply.
 
 The grammar is in **plist** form (`.tmLanguage`), which is what every
-bundled grammar uses. A JSON grammar was tried first and is a plausible
-cause of a silent no-op on this IDEA version, so if you adapt this
-bundle, keep the plist.
+bundled grammar uses. A JSON grammar was tried first and did not load on
+IDEA 2021.2.3, so if you adapt this bundle, keep the plist.
+
+### If comments are not coloured but other things are
+
+Check that `repository` still has a `comment` key. TextMate uses
+`"comment"` as a documentation field *inside* a rule, so a conversion
+script that strips documentation keys will silently delete a rule
+*named* `comment` -- leaving `#comment` in the top-level patterns
+dangling. The symptom is distinctive: comment text falls through to
+whatever else matches, so stray colons and words like `in` light up
+inside prose while the `#` line itself stays plain.
 
 ## What gets highlighted
 
