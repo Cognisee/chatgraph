@@ -26,6 +26,10 @@ Bag := record{
   # the case that generates most mishandling.
   transfer: boolean}
 
+# Where a bag has got to. The mishandled and reflighted cases are
+# separated on purpose: one is a failure still to be resolved, the other
+# is that failure already absorbed onto a later flight, and the recovery
+# work differs entirely.
 BagStatus := union{
   # Handed over at check-in, not yet loaded.
   accepted: unit,
@@ -61,6 +65,10 @@ GroundActivity := record{
   plannedEnd: time.Timespec,
   plannedStart: time.Timespec}
 
+# The work of a turnaround. Which of these lies on the critical path
+# varies with the aircraft, the stand and the load -- an experienced
+# controller knows which one binds today, and the schedule does not
+# say.
 GroundActivityKind := union{
   boarding: unit,
   catering: unit,

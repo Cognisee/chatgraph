@@ -29,16 +29,31 @@ Bank := record{
   name: string,
   startTime: time.LocalTime}
 
+# Whether a bank gathers arrivals or releases departures. A hub day
+# alternates between the two, and a disruption in an arrival bank
+# surfaces as a problem in the departure bank that follows it.
 BankDirection := union{
   arrival: unit,
   departure: unit}
 
+# Whose minimum connect time this is. The distinction matters in
+# recovery: the published figure is what the airline can be held to,
+# the operator's own is usually more conservative, and knowing which
+# one a controller is working to tells you how much room they think
+# they have.
 ConnectTimeSource := union{
   # The airline's own scheduling standard.
   operator: unit,
   # The station's published minimum.
   published: unit}
 
+# One passenger itinerary across two legs at a hub, and the time
+# available to make it.
+#
+# The unit in which hub disruption is actually felt. A late inbound is
+# not itself a problem; it becomes one through the connections it
+# breaks, which is why the same delay costs nothing on one bank and
+# cascades on the next.
 Connection := record{
   # Minutes between the inbound's scheduled arrival and the outbound's
   # scheduled departure.
@@ -52,6 +67,14 @@ Connection := record{
   # gate, a bag cannot, and the bag's cutoff is earlier.
   transferBaggage: boolean}
 
+# A scheduled flight: the recurring schedule entity, not any particular
+# day's operation of it.
+#
+# Kept distinct from FlightLeg because controllers use both words and
+# mean different things. A flight is what the timetable sells; a leg is
+# what actually departs, with a tail number and a crew. Collapsing them
+# loses the ability to say that today's operation diverges from plan,
+# which is the only thing recovery is about.
 Flight := record{
   destination: site.IcaoCode,
   # Marketing carrier code plus number, e.g. "XY203".
@@ -64,6 +87,12 @@ Flight := record{
   scheduledArrival: time.LocalTime,
   scheduledDeparture: time.LocalTime}
 
+# One operation of a flight on one day: a specific aircraft, a specific
+# crew, and times that move.
+#
+# This is the object a controller manipulates. Everything in the
+# disruption module attaches here rather than to Flight, because you
+# cannot cancel a timetable entry -- you cancel today's leg.
 FlightLeg := record{
   aircraft: optional<fleet.Registration>,
   # The stand actually assigned, where known. Stand availability is a
@@ -79,8 +108,17 @@ FlightLeg := record{
   passengerLoad: optional<PassengerLoad>,
   status: FlightStatus}
 
+# A marketing flight number, carrier code included, e.g. "XY203".
+#
+# Wrapped rather than left as a bare string because it identifies the
+# commercial product and not the operation: codeshares mean several
+# numbers can name one leg, and a number outlives any aircraft that
+# ever flew it.
 FlightNumber := wrap{string}
 
+# Where a leg has got to. Deliberately coarse: these are the states a
+# controller needs to distinguish to decide what is still possible, not
+# a full movement-message vocabulary.
 FlightStatus := union{
   airborne: unit,
   arrived: unit,
@@ -92,6 +130,13 @@ FlightStatus := union{
   # On the ground at the origin, not yet boarding.
   scheduled: unit}
 
+# The least time in which a passenger or bag can be expected to make a
+# connection at a station.
+#
+# A planning figure, and like most planning figures it is optimistic in
+# the cases that matter -- it assumes an on-stand arrival, a working
+# bridge and no immigration queue. Which is why an experienced
+# controller treats a connection at exactly MCT as already broken.
 MinimumConnectTime := record{
   # Where the connection happens.
   airport: site.IcaoCode,
@@ -104,6 +149,12 @@ MinimumConnectTime := record{
   toArea: optional<string>,
   value: units.Duration}
 
+# Who is on board, in the terms that bear on a recovery decision.
+#
+# The connecting count is the operationally significant one: local
+# passengers absorb a delay, connecting passengers propagate it into
+# other flights. A full aircraft of locals is an easier problem than a
+# half-full one feeding a bank.
 PassengerLoad := record{
   byClass: map<string, int32>,
   # Passengers making an onward connection at the destination. These are
@@ -111,6 +162,12 @@ PassengerLoad := record{
   connecting: optional<int32>,
   total: int32}
 
+# The chain of legs one aircraft flies through a day.
+#
+# The reason disruption spreads. An aircraft that goes out of service
+# in the morning does not break one flight, it breaks every leg
+# remaining in its rotation, and recovering it means deciding where in
+# that chain to absorb the loss.
 Rotation := record{
   aircraft: fleet.Registration,
   date: time.Date,

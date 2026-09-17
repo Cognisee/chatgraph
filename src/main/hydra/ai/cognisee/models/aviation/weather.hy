@@ -50,6 +50,10 @@ ForecastProbability := union{
   # time.
   temporary: unit}
 
+# Whose minima these are. An operator's own may be higher than the
+# published ones and frequently are; knowing which set a decision was
+# made against is the difference between a legal call and a
+# conservative one.
 MinimaSource := union{
   # Set by the crew for themselves, above what is required. Personal
   # minima are a documented practice and a good example of knowledge
@@ -97,6 +101,13 @@ WeatherConditions := record{
   visibility: optional<units.Length>,
   wind: optional<Wind>}
 
+# Wind as it bears on operations: direction, speed, and the gust that
+# actually decides things.
+#
+# The gust matters more than the mean, because crosswind limits are
+# stated against it -- an aircraft can be inside its limit on the
+# average and outside it on the peak, which is the situation that
+# generates go-arounds.
 Wind := record{
   direction: units.Angle,
   # Peak gust, where reported. The gust rather than the mean is what
