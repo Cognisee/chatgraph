@@ -36,14 +36,21 @@ def sort_module(path):
         lines.pop()
     header = "\n".join(lines).rstrip() + "\n\n"
     body = t[len("\n".join(lines)):]
-    blocks, cur = [], []
-    for line in body.split("\n"):
-        if re.match(r'^[A-Za-z][A-Za-z0-9_]* :=', line) and any(
-                re.match(r'^[A-Za-z][A-Za-z0-9_]* :=', l) for l in cur):
-            blocks.append(cur); cur = [line]
-        else:
-            cur.append(line)
-    blocks.append(cur)
+    # Split at the start of the comment block documenting each
+    # definition, not at the definition line. Splitting at the
+    # definition sweeps its doc comment into the *previous* block as
+    # trailing lines, where sort_fields -- which rebuilds a block from a
+    # regex ending at the closing brace -- silently discards it. That
+    # loses every doc comment but the first, on every run.
+    lines = body.split("\n")
+    starts = []
+    for i, line in enumerate(lines):
+        if re.match(r'^[A-Za-z][A-Za-z0-9_]* :=', line):
+            j = i
+            while j > 0 and lines[j-1].startswith("#"):
+                j -= 1
+            starts.append(j)
+    blocks = [lines[a:b] for a, b in zip(starts, starts[1:] + [len(lines)])]
     def dname(b):
         for l in b:
             m = re.match(r'^([A-Za-z][A-Za-z0-9_]*) :=', l)
@@ -54,5 +61,35 @@ def sort_module(path):
     pathlib.Path(path).write_text(
         header + "\n\n".join("\n".join(b).strip() for b in blocks) + "\n")
 
-for p in sys.argv[1:]:
-    sort_module(p); print("sorted", pathlib.Path(p).name)
+def _selftest():
+    """Sorting must never lose a comment. Run with --selftest.
+
+    This existed because it did: an earlier splitter cut blocks at the
+    definition line, which swept each doc comment into the *previous*
+    block, where it was silently dropped. It cost ~50 comments across
+    the schema before anyone noticed, because nothing failed.
+    """
+    import tempfile
+    src = ("# Header.\n\nmodule test.x\n\n"
+           "# Doc for Bravo.\nBravo := record{\n  b: string}\n\n"
+           "# Doc for Alpha.\nAlpha := record{\n  a: string}\n\n"
+           "# Doc for Charlie.\nCharlie := record{\n  c: string}\n")
+    with tempfile.TemporaryDirectory() as d:
+        f = pathlib.Path(d) / "t.hy"
+        f.write_text(src)
+        sort_module(f)
+        first = f.read_text()
+        sort_module(f)
+        assert first == f.read_text(), "sort is not idempotent"
+        for name in ("Alpha", "Bravo", "Charlie"):
+            assert f"# Doc for {name}.\n{name} :=" in first, \
+                f"lost or detached doc comment for {name}"
+        names = re.findall(r'^([A-Za-z][A-Za-z0-9_]*) :=', first, re.M)
+        assert names == sorted(names), f"not sorted: {names}"
+    print("sort_hy selftest ok")
+
+if sys.argv[1:2] == ["--selftest"]:
+    _selftest()
+else:
+    for p in sys.argv[1:]:
+        sort_module(p); print("sorted", pathlib.Path(p).name)
