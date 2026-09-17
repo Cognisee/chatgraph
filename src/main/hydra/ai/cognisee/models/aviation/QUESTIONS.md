@@ -30,14 +30,33 @@ string. The real thing is either flight cycles or calendar days, with
 different arithmetic. Probably wants two cases; left as text until it is
 clear the scenarios need it.
 
-**5. No representation of *conjunction* as a signal.** Scenario 3 turns
-on five individually unremarkable conditions that together mean the bank
-is about to go. The schema can represent the five conditions and the
-intervention, but not the claim that *this combination* is diagnostic.
-That claim is elicited knowledge rather than operational fact, so it may
-belong in a knowledge layer rather than here -- but it is the heart of
-the scenario and currently has nowhere to live. **This is the most
-significant gap.**
+**5. Modal claims are out of scope, by design.** Resolved, and worth
+stating clearly because it will otherwise be re-raised as a coverage
+gap.
+
+Twenty-three plausible controller utterances were walked through the
+schema, spread across the four scenarios. Nineteen land cleanly. The
+four that do not are the same four in every scenario:
+
+| Utterance | What it is |
+|---|---|
+| *"I wouldn't use that aircraft."* | a judgment about an option, held by a person |
+| *"Not worth holding -- there's another at 0900."* | a reason for rejecting an option |
+| *"Together that means the bank goes."* | a conjunction asserted to be diagnostic |
+| *"I don't trust that forecast -- it's always early."* | a calibration claim about a source |
+
+Each is a claim *held by someone about* the domain rather than a fact
+*of* the domain, and **these are the subject of `hydra.logic`, which
+lives outside the domain schemas.** Modelling them here would duplicate
+a generic mechanism per domain and would muddle what the schema is for:
+these modules say what is true of airline operations, not what any
+person believes about it.
+
+The practical consequence: **the domain modules are complete to the
+depth the scenarios require.** The utterances that carry the demo --
+utterance 7 *is* the S1 reveal, and *"together that means the bank
+goes"* *is* S3 -- are held by the logic layer against these types, not
+by these types.
 
 **6. Time.** ~~Every timestamp is a `string`.~~ **Resolved.** Absolute
 instants now use **`hydra.time.Timespec`** -- Hydra's own kernel type,
