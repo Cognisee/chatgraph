@@ -172,6 +172,8 @@ encoded. See the note in the exclusions below.
   line held is that an act is domain content and a belief is not.
 - **Epistemic state generally.** What an agent knows, believes, or holds
   as probable belongs to `hydra.logic`, not here.
+- **`Timespec` duplication.** Resolved: `ai.cognisee.models.time` now
+  imports `hydra.time` rather than restating the type.
 - **A reference type for cross-entity identifiers.** Fields naming
   another entity (`Action.affectedLegs`, `Pairing.legs`,
   `GroundActivity.dependsOn`, the stand references) are strings holding
