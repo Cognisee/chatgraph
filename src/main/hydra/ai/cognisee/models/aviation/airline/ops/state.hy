@@ -21,6 +21,7 @@
 module ai.cognisee.models.aviation.airline.ops.state
 
 import ai.cognisee.models.aviation.airline.fleet as fleet
+import ai.cognisee.models.aviation.site as site
 import ai.cognisee.models.time as time
 
 # Where an aircraft was at a moment in time.
@@ -31,8 +32,8 @@ import ai.cognisee.models.time as time
 AircraftPosition := record{
   aircraft: fleet.Registration,
   observedAt: time.Timespec,
-  # ICAO code of the station. Absent while airborne.
-  station: optional<string>}
+  # The station. Absent while airborne.
+  station: optional<site.IcaoCode>}
 
 # Whether an aircraft could be dispatched, as at a moment in time.
 #
@@ -81,8 +82,8 @@ BagStatus := union{
 CrewPosition := record{
   crewMember: string,
   observedAt: time.Timespec,
-  # ICAO code of the station.
-  station: string}
+  # The station.
+  station: site.IcaoCode}
 
 # A defect recorded against an airframe, and its life.
 #

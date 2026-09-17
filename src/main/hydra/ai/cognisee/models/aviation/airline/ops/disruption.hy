@@ -14,6 +14,7 @@
 module ai.cognisee.models.aviation.airline.ops.disruption
 
 import ai.cognisee.models.aviation.airline.ops.staff as staff
+import ai.cognisee.models.aviation.site as site
 import ai.cognisee.models.aviation.weather as weather
 import ai.cognisee.models.time as time
 import ai.cognisee.models.units as units
@@ -129,7 +130,7 @@ Advisory := record{
 Alternate := record{
   # Accommodation, if the diversion becomes an overnight.
   accommodationAvailable: optional<boolean>,
-  airport: string,
+  airport: site.IcaoCode,
   # Forecast conditions there, which have to be better than at the
   # destination for the alternate to be worth anything.
   forecast: optional<weather.Forecast>,
@@ -181,7 +182,7 @@ AttemptOutcome := union{
 # infrastructure. A runway's existence is a fact about the airport; its
 # throughput this afternoon is a fact about the day.
 Capacity := record{
-  airport: string,
+  airport: site.IcaoCode,
   # Movements per hour the schedule is built on.
   baseline: optional<int32>,
   # Movements per hour currently achievable.
@@ -324,4 +325,4 @@ HotelCapacity := record{
   date: time.Date,
   # Rooms the current plan would need.
   required: optional<int32>,
-  station: string}
+  station: site.IcaoCode}

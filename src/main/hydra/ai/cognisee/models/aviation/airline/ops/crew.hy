@@ -9,6 +9,7 @@
 module ai.cognisee.models.aviation.airline.ops.crew
 
 import ai.cognisee.models.aviation.airline.fleet as fleet
+import ai.cognisee.models.aviation.site as site
 import ai.cognisee.models.time as time
 import ai.cognisee.models.units as units
 
@@ -22,7 +23,7 @@ CrewMember := record{
   # they happen to be changes daily. Where they actually are is an
   # observation -- see CrewPosition in the state module -- and the gap
   # between the two is what makes positioning a reserve cost a day.
-  baseStation: string,
+  baseStation: site.IcaoCode,
   identifier: string,
   # Types the member is currently qualified and current on.
   qualifications: list<Qualification>,
@@ -125,4 +126,4 @@ ReportingTime := record{
   # As originally rostered.
   scheduled: time.Timespec,
   # Where they are reporting. Deferral is a station-level conversation.
-  station: string}
+  station: site.IcaoCode}

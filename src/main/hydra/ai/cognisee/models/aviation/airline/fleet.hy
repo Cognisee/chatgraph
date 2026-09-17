@@ -10,6 +10,7 @@
 module ai.cognisee.models.aviation.airline.fleet
 
 import ai.cognisee.models.aviation.site as site
+import ai.cognisee.models.time as time
 import ai.cognisee.models.units as units
 
 # An individual airframe, identified by its registration. The tail is
@@ -115,13 +116,32 @@ Defect := record{
 # constrains where it can be at a given date, and that constraint is
 # invisible to anyone looking only at today's serviceability.
 Deferral := record{
-  # The MEL category, which fixes how long the defect may be carried:
-  # A, B, C or D in the standard scheme.
-  category: string,
-  # Flight cycles or calendar days remaining, as stated.
-  # QUESTION: worth modelling the two rectification-interval kinds
-  # separately, or is free text enough at this stage?
-  remaining: string}
+  category: DeferralCategory,
+  # When the defect must be rectified by. The deadline is the primitive
+  # fact; how much is left is a view of it against the current time, and
+  # a view that is wrong a moment later. Absent when the interval is
+  # counted in cycles or hours rather than days, since those have no
+  # calendar deadline until you know the flying plan.
+  expiresAt: optional<time.Timespec>,
+  # How the interval is counted, and how much of it remains.
+  remaining: RectificationInterval}
+
+# The MEL rectification category, which fixes how long a defect may be
+# carried. A closed, four-valued scheme, so an enum rather than the
+# letter as text.
+#
+# The standard intervals, excluding the day of discovery: category A is
+# as specified in the MEL item itself and has no standard period;
+# B is three consecutive calendar days, C is ten, D is 120.
+DeferralCategory := union{
+  # Interval specified in the MEL item; no standard period.
+  categoryA: unit,
+  # Three consecutive calendar days.
+  categoryB: unit,
+  # Ten consecutive calendar days.
+  categoryC: unit,
+  # 120 consecutive calendar days.
+  categoryD: unit}
 
 # Where an aircraft or crew member may or may not go.
 #
@@ -142,6 +162,21 @@ DestinationRestriction := record{
   # Why the restriction exists, where stated. Usually a certification or
   # an equipment fit; occasionally a bilateral or a sanction.
   reason: optional<string>}
+
+# What remains of a rectification interval, in the unit it is counted
+# in.
+#
+# The kinds are not interchangeable and the difference decides a
+# recovery option. Calendar days tick whether or not the aircraft flies,
+# so a tail parked over a weekend still burns its category B clock;
+# cycles and hours tick only when it operates, so parking it stops the
+# clock. Whether "ground it until we can fix it" buys anything depends
+# entirely on which of these is counting.
+RectificationInterval := union{
+  calendarDays: int32,
+  # One cycle is one takeoff and landing.
+  flightCycles: int32,
+  flightHours: int32}
 
 # An aircraft registration, e.g. "G-ABCD". Unique to one airframe, and
 # the identifier controllers actually use.

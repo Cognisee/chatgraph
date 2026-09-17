@@ -19,7 +19,6 @@ the invariant and exclusions sections below.
 | Tag | Question | For |
 |---|---|---|
 | `Q-BANK` | Is a connecting bank a real operational object? | controller |
-| `Q-DEFERRAL` | Deferral intervals: free text, or cycles vs. days? | us |
 | `Q-LOCALTIME` | Should `LocalTime`'s zone be optional or mandatory? | us |
 | `Q-AUTHORITY` | Where does decision authority escalate? | controller |
 | `Q-GROUNDTIME` | Is published minimum ground time treated as achievable? | controller |
@@ -38,11 +37,6 @@ operator names and manages. Two independent sources reverse-engineered
 four banks at a major hub from schedule data; neither found the airline
 publishing them. *Good question for a controller: do you name your
 banks?*
-
-**Q-DEFERRAL. Deferral intervals as free text.** `Deferral.remaining` is
-a string. The real thing is either flight cycles or calendar days, with
-different arithmetic. Probably wants two cases; left as text until it is
-clear the scenarios need it.
 
 **Q-LOCALTIME. LocalTime shape.** Absolute instants use
 `hydra.time.Timespec`, and `ai.cognisee.models.time` adds only what it
@@ -125,6 +119,34 @@ single-day entity whose fields change no faster than it does),
 `GroundActivity` (the occurrence itself), `Capacity` and
 `HotelCapacity` (already time-bounded observations).
 
+## A typing rule: closed vocabularies are not strings
+
+**If the set of values is fixed and known, it is an enum; if it is a
+count, it is a number; if it is an identifier with a type, it is that
+type.** A string is for genuinely free text -- a description, a stated
+reason, a name.
+
+Applied so far:
+
+| Was | Now |
+|---|---|
+| `AircraftVariant.aerodromeCode: string` | `site.AerodromeCode` |
+| `Deferral.category: string` ("A".."D") | `DeferralCategory` |
+| `Deferral.remaining: string` ("3 days") | `RectificationInterval` (days / cycles / hours) |
+| six station fields commented "as an ICAO code" | `site.IcaoCode` |
+
+What legitimately stays a string: `Defect.description`, `ExtraFuel.reason`,
+`Advisory.content`, `DestinationRestriction.destinations` (stated at
+country level, not as codes), `Curfew.exceptionAuthority`, and the
+`other:` case of a union, which exists precisely to carry what the
+enum does not name.
+
+Still open: several identifier fields (`legs`, `affectedLegs`,
+`dependsOn`, stand references) are strings holding foreign keys. That is
+a deliberate flattening -- the alternative is a reference type or a
+direct object, and which to use depends on how the graph is finally
+encoded. See the note in the exclusions below.
+
 ## Things deliberately left out
 
 - **Anything modelling why a decision was made.** Rationale, cues,
@@ -135,6 +157,14 @@ single-day entity whose fields change no faster than it does),
   line held is that an act is domain content and a belief is not.
 - **Epistemic state generally.** What an agent knows, believes, or holds
   as probable belongs to `hydra.logic`, not here.
+- **A reference type for cross-entity identifiers.** Fields naming
+  another entity (`Action.affectedLegs`, `Pairing.legs`,
+  `GroundActivity.dependsOn`, the stand references) are strings holding
+  what amounts to a foreign key. The alternatives are a wrapper type per
+  referent or a direct object reference, and the right choice depends on
+  how these modules are finally encoded into a property graph -- which
+  is what Hydra 0.18.1 is expected to settle. Left flat until then,
+  deliberately rather than by oversight.
 - **Cargo**, beyond baggage. No scenario needs it.
 - **Fares, revenue, and commercial policy.** Route profitability appears
   in the research as an explicit tiebreaker in recovery decisions, but
