@@ -9,7 +9,9 @@
 module ai.cognisee.models.aviation.airline.ops.crew
 
 import ai.cognisee.models.aviation.airline.fleet as fleet
+import ai.cognisee.models.time as time
 import ai.cognisee.models.units as units
+import hydra.time as hydratime
 
 # A crew member. Flight deck and cabin are modelled together because
 # both are dispatch constraints, but their qualifications differ in
@@ -60,9 +62,9 @@ DutyPeriod := record{
   extension: optional<DutyExtension>,
   # The latest the duty may legally end. This is the number a controller
   # is watching.
-  latestFinish: string,
+  latestFinish: hydratime.Timespec,
   # When the duty began, as stated.
-  reportTime: string}
+  reportTime: hydratime.Timespec}
 
 ExtensionAuthority := union{
   # The commander may extend in flight, within limits.
@@ -86,5 +88,5 @@ Qualification := record{
   aircraftType: fleet.AircraftType,
   # When currency lapses without a further sector or simulator check.
   # A qualified but non-current crew member cannot operate.
-  currentUntil: optional<string>,
+  currentUntil: optional<time.Date>,
   role: CrewRole}

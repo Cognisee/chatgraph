@@ -10,7 +10,9 @@ module ai.cognisee.models.aviation.airline.ops.network
 
 import ai.cognisee.models.aviation.airline.fleet as fleet
 import ai.cognisee.models.aviation.site as site
+import ai.cognisee.models.time as time
 import ai.cognisee.models.units as units
+import hydra.time as hydratime
 
 # A connecting bank: a cluster of arrivals timed to feed a cluster of
 # departures. Hub schedules are built around these, which is why a
@@ -24,9 +26,9 @@ Bank := record{
   # Whether this is an arrival or a departure cluster.
   direction: BankDirection,
   # Local times bounding the cluster.
-  endTime: string,
+  endTime: time.LocalTime,
   name: string,
-  startTime: string}
+  startTime: time.LocalTime}
 
 BankDirection := union{
   arrival: unit,
@@ -60,21 +62,20 @@ Flight := record{
   # assigned may differ, and that difference is the substitution
   # problem.
   plannedVariant: optional<fleet.AircraftVariant>,
-  scheduledArrival: string,
-  scheduledDeparture: string}
+  scheduledArrival: time.LocalTime,
+  scheduledDeparture: time.LocalTime}
 
 FlightLeg := record{
   aircraft: optional<fleet.Registration>,
   # The stand actually assigned, where known. Stand availability is a
   # real constraint on which aircraft can operate a leg.
   arrivalStand: optional<string>,
-  # ISO date of operation.
-  date: string,
+  date: time.Date,
   departureStand: optional<string>,
   # Estimated or actual times, as they become known. Absent until they
   # are.
-  estimatedArrival: optional<string>,
-  estimatedDeparture: optional<string>,
+  estimatedArrival: optional<hydratime.Timespec>,
+  estimatedDeparture: optional<hydratime.Timespec>,
   flight: Flight,
   passengerLoad: optional<PassengerLoad>,
   status: FlightStatus}
@@ -113,6 +114,5 @@ PassengerLoad := record{
 
 Rotation := record{
   aircraft: fleet.Registration,
-  # ISO date.
-  date: string,
+  date: time.Date,
   legs: list<FlightLeg>}

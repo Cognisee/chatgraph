@@ -8,6 +8,7 @@
 
 module ai.cognisee.models.aviation.weather
 
+import ai.cognisee.models.time as time
 import ai.cognisee.models.units as units
 
 # Coverage in oktas, as reported.
@@ -37,8 +38,7 @@ Forecast := record{
   # Confidence qualifier as issued, where the forecast carries one.
   probability: optional<ForecastProbability>,
   # Period the forecast covers.
-  validFrom: string,
-  validTo: string}
+  validity: time.Period}
 
 # Forecast confidence, as the terminal aerodrome forecast expresses it.
 ForecastProbability := union{

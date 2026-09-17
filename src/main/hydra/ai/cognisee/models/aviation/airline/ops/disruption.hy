@@ -15,6 +15,7 @@ module ai.cognisee.models.aviation.airline.ops.disruption
 
 import ai.cognisee.models.aviation.weather as weather
 import ai.cognisee.models.units as units
+import hydra.time as hydratime
 
 # A recovery action taken or considered. Modelling considered options
 # alongside taken ones matters: the interesting question in a
@@ -26,11 +27,11 @@ Action := record{
   # When the option stops being available. Some options expire: a crew
   # times out, a slot passes, a connection closes. Knowing the window is
   # a large part of the expertise.
-  expiresAt: optional<string>,
+  expiresAt: optional<hydratime.Timespec>,
   kind: ActionKind,
   status: ActionStatus,
   # Whether it was taken, and when.
-  takenAt: optional<string>}
+  takenAt: optional<hydratime.Timespec>}
 
 ActionKind := union{
   # Cancel a leg outright.
@@ -101,7 +102,7 @@ Disruption := record{
   # When it was first known about. For a forecast condition this may be
   # hours before it has any effect, which is what makes pre-emptive
   # action possible.
-  detectedAt: string,
+  detectedAt: hydratime.Timespec,
   # Legs directly affected, before any cascade.
   directlyAffected: list<string>,
   identifier: string,

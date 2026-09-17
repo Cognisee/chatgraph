@@ -39,11 +39,18 @@ belong in a knowledge layer rather than here -- but it is the heart of
 the scenario and currently has nowhere to live. **This is the most
 significant gap.**
 
-**6. Time as strings.** Every timestamp is a `string`. Hydra has no
-date-time primitive in the syntax I have seen, and inventing one would
-be worse than waiting. Flagging it because operational reasoning is
-almost entirely about time, and string comparison is not time
-comparison.
+**6. Time.** ~~Every timestamp is a `string`.~~ **Resolved.** Absolute
+instants now use **`hydra.time.Timespec`** -- Hydra's own kernel type,
+POSIX `struct timespec` semantics, signed seconds and unsigned
+nanoseconds since the epoch. `ai.cognisee.models.time` adds only the
+forms Timespec cannot express: `LocalTime` (a clock time with no date,
+which is how operational times are spoken and is genuinely ambiguous
+until a date and zone are known), `Date`, `Period`, and `TimeKind`
+(scheduled / estimated / actual).
+
+Open sub-question: is `LocalTime` as minutes-past-midnight plus an
+optional IANA zone the right shape, or should the zone be mandatory with
+an explicit "not stated" case?
 
 ## Questions for an operations expert
 
