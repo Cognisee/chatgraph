@@ -14,10 +14,29 @@ support.
 2. **+**, and select `tools/textmate/hydra.tmbundle` in this repository
 3. Apply. Open any `.hy` file.
 
-If files still render as plain text, check
-**Settings → Editor → File Types** for a `*.hy` pattern claimed by
-another type, and remove it. Note the extension collides with the Hy
-Lisp dialect, so a Hy plugin -- if installed -- will win.
+After changing anything in the bundle, **remove and re-add it** --
+IDEA reads the metadata when the bundle is registered and does not
+notice later edits.
+
+### If nothing is highlighted at all
+
+Not even comments means the bundle is not loading, rather than the
+grammar being wrong. In rough order of likelihood:
+
+1. **Something else owns `*.hy`.** Check
+   **Settings → Editor → File Types** for a `*.hy` pattern under another
+   type, including "Text". An explicit association beats a TextMate
+   bundle. The extension collides with the Hy Lisp dialect, so a Hy
+   plugin will win if one is installed.
+2. **The registered path is at the wrong level.** It must be the
+   `hydra.tmbundle` directory itself -- the one containing `info.plist`
+   and `Syntaxes/` -- not `tools/textmate` and not `Syntaxes/`.
+3. **Stale registration.** Remove the bundle, Apply, re-add, Apply.
+
+The grammar is in **plist** form (`.tmLanguage`), which is what every
+bundled grammar uses. A JSON grammar was tried first and is a plausible
+cause of a silent no-op on this IDEA version, so if you adapt this
+bundle, keep the plist.
 
 ## What gets highlighted
 
