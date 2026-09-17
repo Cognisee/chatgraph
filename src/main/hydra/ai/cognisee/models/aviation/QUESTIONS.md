@@ -111,6 +111,37 @@ holds baseline and current movements per hour. The numbers heard so far
 whether controllers carry a table of these or recognise them by feel is
 itself a finding.
 
+## A modeling invariant: entities are immutable
+
+**A slower-changing entity never carries a faster-changing fact as a
+field.** An airframe lasts decades; where it is parked changes hourly.
+Hanging the second off the first makes the entity a record that is never
+correct for long, and -- worse for an elicitation system -- destroys the
+ability to say what was known at the time a decision was taken.
+
+Fast facts become **observations**: their own type in
+`ops/state.hy`, linking to the entity by identifier and carrying their
+own timestamp. One type per fact rather than a generic
+`Observation<subject, value>`, because these are observed by different
+means at different cadences -- a position from a movement message, an
+airworthiness change from engineering, a bag from a scanner -- and a
+type parameter would hide that provenance.
+
+Applied so far:
+
+| Was | Now |
+|---|---|
+| `Aircraft.location` | `AircraftPosition` |
+| `Aircraft.status` | `AircraftStatus` |
+| `Aircraft.openDefects` | `DefectRecord` (with `clearedAt`, keeping history) |
+| `Bag.currentLeg`, `Bag.status` | `BagScan` |
+| `CrewMember.baseStation` (documented as position) | stays as *base*; position is `CrewPosition` |
+
+What legitimately keeps mutable-looking fields: `FlightLeg` (a
+single-day entity whose fields change no faster than it does),
+`GroundActivity` (the occurrence itself), `Capacity` and
+`HotelCapacity` (already time-bounded observations).
+
 ## Things deliberately left out
 
 - **Anything modelling why a decision was made.** Rationale, cues,

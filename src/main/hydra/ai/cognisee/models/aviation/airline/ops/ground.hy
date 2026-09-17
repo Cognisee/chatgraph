@@ -12,33 +12,20 @@ module ai.cognisee.models.aviation.airline.ops.ground
 import ai.cognisee.models.time as time
 import ai.cognisee.models.units as units
 
-# A single bag and where it is in its journey. Modelled individually
-# because the operationally interesting question is per-bag: this bag,
-# on that connection, against a cutoff.
+# A single bag and its itinerary. Modelled individually because the
+# operationally interesting question is per-bag: this bag, on that
+# connection, against a cutoff.
+#
+# Carries only what is fixed when the bag is accepted. Where it is now
+# and what has happened to it are scans, in the state module -- see
+# BagScan.
 Bag := record{
-  # The leg the bag is currently travelling on or waiting for.
-  currentLeg: optional<string>,
   # Where the bag is meant to end up.
   destination: string,
   identifier: string,
-  status: BagStatus,
   # True when the bag has to move between two flights at a hub. This is
   # the case that generates most mishandling.
   transfer: boolean}
-
-# Where a bag has got to. The mishandled and reflighted cases are
-# separated on purpose: one is a failure still to be resolved, the other
-# is that failure already absorbed onto a later flight, and the recovery
-# work differs entirely.
-BagStatus := union{
-  # Handed over at check-in, not yet loaded.
-  accepted: unit,
-  delivered: unit,
-  loaded: unit,
-  # Known to have missed its intended flight.
-  mishandled: unit,
-  # Loaded onto a later flight after missing its connection.
-  reflighted: unit}
 
 # The time after which a bag can no longer be accepted for a departing
 # flight. This is a harder constraint than the passenger cutoff and

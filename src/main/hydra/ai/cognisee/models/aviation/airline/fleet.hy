@@ -13,24 +13,20 @@ import ai.cognisee.models.units as units
 
 # An individual airframe, identified by its registration. The tail is
 # what actually gets assigned to a rotation.
+#
+# Deliberately immutable. Position, airworthiness and open defects all
+# change many times a day against an airframe that lasts decades, so
+# they are observations in the state module rather than fields here --
+# see AircraftPosition, AircraftStatus and DefectRecord. What remains is
+# what is true of the tail for as long as it is that tail.
 Aircraft := record{
   cabin: CabinConfiguration,
-  # Where the aircraft currently is, as an ICAO code. Absent while
-  # airborne.
-  # QUESTION: should position be here at all, or does it belong to the
-  # operational state rather than the airframe?
-  location: optional<string>,
-  # Deferred defects carried under the operator's minimum equipment
-  # list. Each one is legal to fly with, but they accumulate, and an
-  # experienced controller knows which combinations make an aircraft a
-  # poor choice for a particular sector even when each item is
-  # individually acceptable.
-  openDefects: list<Defect>,
   registration: Registration,
   # Where this airframe may or may not be flown. Empty means no
   # restriction is recorded, which is not the same as none existing.
+  # A property of the airframe's certification and fit, so it belongs
+  # here: it changes on the scale of the aircraft itself, not the day.
   restrictions: list<DestinationRestriction>,
-  status: AirworthinessStatus,
   variant: AircraftVariant}
 
 # An aircraft type as certified: the level at which a pilot type rating
@@ -144,11 +140,6 @@ DestinationRestriction := record{
 # An aircraft registration, e.g. "G-ABCD". Unique to one airframe, and
 # the identifier controllers actually use.
 Registration := wrap{string}
-
-# Whether a restriction names where an element may go, or where it may
-# not. Both forms occur, and they are not interchangeable: a whitelist
-# is a much stronger claim than a blacklist, and confusing them in
-# either direction is an operational error.
 
 # Whether a restriction names what is allowed or what is forbidden.
 #

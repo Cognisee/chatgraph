@@ -17,8 +17,11 @@ import ai.cognisee.models.units as units
 # kind: a pilot's rating is per aircraft type, a cabin crew member's
 # competence is per type and per door.
 CrewMember := record{
-  # Where the crew member currently is, as an ICAO code. Positioning a
-  # reserve crew from the hub to an outstation costs a day.
+  # The station this crew member is based at, as an ICAO code. Their
+  # base, not their position: base changes on a scale of years, where
+  # they happen to be changes daily. Where they actually are is an
+  # observation -- see CrewPosition in the state module -- and the gap
+  # between the two is what makes positioning a reserve cost a day.
   baseStation: string,
   identifier: string,
   # Types the member is currently qualified and current on.

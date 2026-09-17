@@ -94,13 +94,7 @@ CurfewScope := union{
 IataCode := wrap{string}
 
 # Four-letter ICAO location indicator, e.g. "EGLL".
-
-# Four-letter ICAO location indicator, e.g. "EGLL".
 IcaoCode := wrap{string}
-
-# A runway, named by its heading and side. A single physical strip is
-# two runways -- one per direction -- so "12L" and "30R" are distinct
-# Runways over shared pavement.
 
 # A runway, named by its heading and side. A single physical strip is
 # two runways -- one per direction -- so "12L" and "30R" are distinct
