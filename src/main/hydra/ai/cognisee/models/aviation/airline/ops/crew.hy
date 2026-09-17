@@ -23,6 +23,11 @@ CrewMember := record{
   identifier: string,
   # Types the member is currently qualified and current on.
   qualifications: list<Qualification>,
+  # Where this person may or may not operate to. Named alongside the
+  # aircraft equivalent as a routine constraint: "certain crew cannot
+  # fly to certain countries". Usually visas, licence recognition or
+  # nationality restrictions rather than competence.
+  restrictions: list<fleet.DestinationRestriction>,
   role: CrewRole}
 
 # The minimum crew a leg requires, which is not a service-level choice.
@@ -36,6 +41,10 @@ CrewRequirement := record{
   flightDeck: int32,
   variant: fleet.AircraftVariant}
 
+# Position operated, not seniority. Flight deck and cabin roles sit in
+# one union because both are dispatch constraints -- a leg is short of
+# crew whether the missing person is a first officer or a cabin crew
+# member, even though the remedies differ.
 CrewRole := union{
   cabinCrew: unit,
   captain: unit,
@@ -45,6 +54,11 @@ CrewRole := union{
   reliefPilot: unit,
   seniorCabinCrew: unit}
 
+# Additional duty time granted beyond the normal limit.
+#
+# A real lever and a limited one: it buys hours, not a night, and it is
+# not the operation's to grant. Recording who authorised it and how much
+# it bought keeps the difference visible.
 DutyExtension := record{
   authority: ExtensionAuthority,
   # How much additional time the extension permits.
@@ -65,6 +79,10 @@ DutyPeriod := record{
   # When the duty began, as stated.
   reportTime: time.Timespec}
 
+# Who may extend a duty period. A regulatory question, and deliberately
+# kept distinct from DecisionAuthority in the disruption module: that
+# one is about who owns an operational decision, this one about who may
+# lawfully relax a limit. Collapsing them would lose both.
 ExtensionAuthority := union{
   # The commander may extend in flight, within limits.
   commander: unit,
@@ -89,3 +107,19 @@ Qualification := record{
   # A qualified but non-current crew member cannot operate.
   currentUntil: optional<time.Date>,
   role: CrewRole}
+
+# When a crew is due to sign on, and when they actually were.
+#
+# Modelled because the deferral is a recovery action in its own right:
+# "the moment they report, their flight duty period starts clicking."
+# Holding a crew back by an hour before they walk into the building
+# costs nothing and buys an hour at the far end -- the cheapest move
+# available, and invisible to any system watching only aircraft.
+ReportingTime := record{
+  crewMember: CrewMember,
+  # As revised, when it has been moved. Absent means unchanged.
+  revised: optional<time.Timespec>,
+  # As originally rostered.
+  scheduled: time.Timespec,
+  # Where they are reporting. Deferral is a station-level conversation.
+  station: string}

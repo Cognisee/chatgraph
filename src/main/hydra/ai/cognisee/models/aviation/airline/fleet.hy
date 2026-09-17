@@ -27,6 +27,9 @@ Aircraft := record{
   # individually acceptable.
   openDefects: list<Defect>,
   registration: Registration,
+  # Where this airframe may or may not be flown. Empty means no
+  # restriction is recorded, which is not the same as none existing.
+  restrictions: list<DestinationRestriction>,
   status: AirworthinessStatus,
   variant: AircraftVariant}
 
@@ -84,6 +87,10 @@ CabinSection := record{
   seats: int32,
   travelClass: TravelClass}
 
+# Which deck of a two-deck aircraft a cabin section sits on. Only the
+# A380 makes this a real distinction, and it matters operationally
+# because boarding and deboarding the two decks run in parallel through
+# separate bridges -- when the stand has them.
 Deck := union{
   lower: unit,
   main: unit,
@@ -98,6 +105,13 @@ Defect := record{
   # Free text: the ATA chapter the defect belongs to, where known.
   system: optional<string>}
 
+# Permission to operate with a known defect unrepaired, and the clock
+# attached to it.
+#
+# The mechanism by which a technical problem becomes a scheduling
+# problem: the aircraft keeps flying, but a repair deadline now
+# constrains where it can be at a given date, and that constraint is
+# invisible to anyone looking only at today's serviceability.
 Deferral := record{
   # The MEL category, which fixes how long the defect may be carried:
   # A, B, C or D in the standard scheme.
@@ -107,10 +121,48 @@ Deferral := record{
   # separately, or is free text enough at this stage?
   remaining: string}
 
+# Where an aircraft or crew member may or may not go.
+#
+# Raised twice, unprompted, as a routine binding constraint rather than
+# an edge case: "certain crew cannot fly to certain countries. You have
+# certain aircraft cannot fly to certain countries." Usually overflight
+# permits, insurance or registration for aircraft; visas, licence
+# recognition or nationality for crew.
+#
+# One type serves both because they were named in one breath as the same
+# kind of constraint, and because the substitution logic is identical:
+# it removes candidates from a pool.
+DestinationRestriction := record{
+  # Countries or aerodromes, as stated. Free text rather than an ICAO
+  # code because the restriction is often expressed at country level.
+  destinations: list<string>,
+  kind: RestrictionKind,
+  # Why the restriction exists, where stated. Usually a certification or
+  # an equipment fit; occasionally a bilateral or a sanction.
+  reason: optional<string>}
+
 # An aircraft registration, e.g. "G-ABCD". Unique to one airframe, and
 # the identifier controllers actually use.
 Registration := wrap{string}
 
+# Whether a restriction names where an element may go, or where it may
+# not. Both forms occur, and they are not interchangeable: a whitelist
+# is a much stronger claim than a blacklist, and confusing them in
+# either direction is an operational error.
+
+# Whether a restriction names what is allowed or what is forbidden.
+#
+# The distinction is not cosmetic. "You only have a certain list of tails
+# that can fly into that country" is an allowlist, and a short allowlist
+# behaves quite differently from a long blocklist when you are hunting
+# for a substitute at two in the morning.
+RestrictionKind := union{
+  permitted: unit,
+  prohibited: unit}
+
+# Cabin class, as it bears on recovery rather than on revenue. What a
+# controller needs it for is downgrade and reaccommodation: whether a
+# substitute aircraft can seat the premium passengers already booked.
 TravelClass := union{
   business: unit,
   economy: unit,

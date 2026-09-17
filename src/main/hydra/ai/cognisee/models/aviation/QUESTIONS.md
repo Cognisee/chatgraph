@@ -93,11 +93,34 @@ about.
 binds varies with aircraft, stand and load. An expert knows; the
 schedule does not say.
 
+**11. Can a controller say what they chose not to tell the captain?**
+`Advisory.withheld` is the most valuable field in the schema and the
+hardest to populate: the judgement may never have been conscious. If it
+cannot be answered directly, it may have to be reconstructed by asking
+what the captain turned out not to know.
+
+**12. Does a curfew exception have a standing process or is it personal?**
+`Curfew.exceptionAuthority` assumes someone can be asked. Whether that
+is a defined escalation or a relationship a particular station manager
+happens to have is worth knowing -- the second is precisely the
+knowledge that walks out of the door.
+
+**13. What is the real flow rate under each condition?** `Capacity`
+holds baseline and current movements per hour. The numbers heard so far
+(35 falling to 10-15) came from one conversation about one airport;
+whether controllers carry a table of these or recognise them by feel is
+itself a finding.
+
 ## Things deliberately left out
 
 - **Anything modelling why a decision was made.** Rationale, cues,
   heuristics, confidence, provenance. This is a domain schema; the
   knowledge layer is a separate concern and was explicitly scoped out.
+  `Advisory` is the near miss worth naming: it records what was said and
+  what was omitted, which is a communication event, not a reason. The
+  line held is that an act is domain content and a belief is not.
+- **Epistemic state generally.** What an agent knows, believes, or holds
+  as probable belongs to `hydra.logic`, not here.
 - **Cargo**, beyond baggage. No scenario needs it.
 - **Fares, revenue, and commercial policy.** Route profitability appears
   in the research as an explicit tiebreaker in recovery decisions, but

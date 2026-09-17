@@ -3,6 +3,7 @@
 
 module ai.cognisee.models.aviation.site
 
+import ai.cognisee.models.time as time
 import ai.cognisee.models.units as units
 
 # ICAO aerodrome reference code letter. Bounds wingspan and outer main
@@ -20,6 +21,9 @@ AerodromeCode := union{
 # A civil airport, identified by its ICAO code. IATA is carried too
 # because operational staff use it in speech far more often.
 Airport := record{
+  # Movement restrictions at this aerodrome. Empty means none recorded,
+  # which is not the same as none existing.
+  curfews: list<Curfew>,
   iata: optional<IataCode>,
   icao: IcaoCode,
   name: string,
@@ -57,11 +61,46 @@ Concourse := record{
   name: string,
   stands: list<Stand>}
 
+# A time window in which an aerodrome will not accept movements.
+#
+# Raised unprompted as a standing priority, especially in Europe. The
+# exceptionAuthority field is the point: her worked example is a station
+# manager negotiating to get away fifteen minutes past the limit, so a
+# curfew is a hard limit with a soft edge. Modelling only the hard limit
+# would lose the move that matters.
+#
+# What follows from missing one is the cascade the scenarios are about:
+# an aircraft stuck overnight, passengers needing hotel rooms that may
+# not exist, and a tail out of its rotation until morning.
+Curfew := record{
+  # Which movements it restricts.
+  appliesTo: CurfewScope,
+  # Whether an exception can be sought, and from whom, where known.
+  exceptionAuthority: optional<string>,
+  # Local clock times bounding the window.
+  from: time.LocalTime,
+  to: time.LocalTime}
+
+# Which movements a curfew binds. Asymmetric restrictions are common --
+# an airport that will accept a late arrival but not release a departure
+# -- and the asymmetry is exactly what determines whether an aircraft is
+# merely late or stranded.
+CurfewScope := union{
+  arrivals: unit,
+  both: unit,
+  departures: unit}
+
 # Three-letter IATA code, e.g. "LHR".
 IataCode := wrap{string}
 
 # Four-letter ICAO location indicator, e.g. "EGLL".
+
+# Four-letter ICAO location indicator, e.g. "EGLL".
 IcaoCode := wrap{string}
+
+# A runway, named by its heading and side. A single physical strip is
+# two runways -- one per direction -- so "12L" and "30R" are distinct
+# Runways over shared pavement.
 
 # A runway, named by its heading and side. A single physical strip is
 # two runways -- one per direction -- so "12L" and "30R" are distinct
@@ -96,6 +135,10 @@ RunwayHeading := record{
   # The two-digit number as painted, 1-36.
   designation: int32}
 
+# Which of a parallel pair a runway is. Part of the designator rather
+# than an attribute of the pavement: 27L and 27R are separate runways
+# with separate declared distances and, often, separate approach
+# minima.
 RunwaySide := union{
   center: unit,
   left: unit,
@@ -116,6 +159,9 @@ Stand := record{
   # constraint that makes wide-body parking scarce.
   maxAerodromeCode: AerodromeCode}
 
+# What a runway is made of. Bears on braking action and on which
+# aircraft may use it at all, both of which tighten sharply once the
+# surface is wet.
 SurfaceType := union{
   asphalt: unit,
   concrete: unit,
@@ -123,6 +169,10 @@ SurfaceType := union{
   grass: unit,
   gravel: unit}
 
+# A passenger building. Modelled because connection times are stated
+# between areas rather than between flights: a transfer within one
+# terminal and a transfer across two are different problems wearing the
+# same clothes.
 Terminal := record{
   concourses: list<Concourse>,
   name: string}
