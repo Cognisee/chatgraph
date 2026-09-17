@@ -12,7 +12,6 @@ import ai.cognisee.models.aviation.airline.fleet as fleet
 import ai.cognisee.models.aviation.site as site
 import ai.cognisee.models.time as time
 import ai.cognisee.models.units as units
-import hydra.time as hydratime
 
 # A connecting bank: a cluster of arrivals timed to feed a cluster of
 # departures. Hub schedules are built around these, which is why a
@@ -74,8 +73,8 @@ FlightLeg := record{
   departureStand: optional<string>,
   # Estimated or actual times, as they become known. Absent until they
   # are.
-  estimatedArrival: optional<hydratime.Timespec>,
-  estimatedDeparture: optional<hydratime.Timespec>,
+  estimatedArrival: optional<time.Timespec>,
+  estimatedDeparture: optional<time.Timespec>,
   flight: Flight,
   passengerLoad: optional<PassengerLoad>,
   status: FlightStatus}

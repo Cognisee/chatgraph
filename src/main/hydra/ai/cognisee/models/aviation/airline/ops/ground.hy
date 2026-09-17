@@ -9,8 +9,8 @@
 
 module ai.cognisee.models.aviation.airline.ops.ground
 
+import ai.cognisee.models.time as time
 import ai.cognisee.models.units as units
-import hydra.time as hydratime
 
 # A single bag and where it is in its journey. Modelled individually
 # because the operationally interesting question is per-bag: this bag,
@@ -50,16 +50,16 @@ BaggageCutoff := record{
 # One piece of work in a turnaround.
 GroundActivity := record{
   # When it actually happened, as it becomes known.
-  actualEnd: optional<hydratime.Timespec>,
-  actualStart: optional<hydratime.Timespec>,
+  actualEnd: optional<time.Timespec>,
+  actualStart: optional<time.Timespec>,
   # Activities this one cannot start before. The critical path runs
   # through these dependencies, and an experienced controller knows
   # which ones actually bind on a given day.
   dependsOn: list<string>,
   kind: GroundActivityKind,
   # When the plan says it should happen.
-  plannedEnd: hydratime.Timespec,
-  plannedStart: hydratime.Timespec}
+  plannedEnd: time.Timespec,
+  plannedStart: time.Timespec}
 
 GroundActivityKind := union{
   boarding: unit,

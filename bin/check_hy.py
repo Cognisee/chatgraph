@@ -17,6 +17,15 @@ for f in sorted(pathlib.Path("src/main/hydra").rglob("*.hy")):
         if fields != sorted(fields):
             bad = 1
             print(f"  {f.name}: fields of {tname} out of order -> {fields}")
+    # every qualified reference resolves to an import
+    mod = re.search(r'^module (\S+)', text, re.M)
+    own = mod.group(1).split(".")[-1] if mod else ""
+    have = set(re.findall(r'^import \S+ as (\S+)$', text, re.M))
+    for a in sorted(set(re.findall(r'\b([a-z][a-zA-Z0-9]*)\.[A-Z]', text))):
+        if a != own and a not in have:
+            bad = 1
+            print(f"  {f.name}: unresolved qualified prefix {a!r}")
+
     # non-ASCII
     for i, line in enumerate(text.splitlines(), 1):
         if any(ord(c) > 127 for c in line):
