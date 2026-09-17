@@ -1,4 +1,4 @@
-# Hydra syntax highlighting for IntelliJ IDEA
+# hydra syntax highlighting for IntelliJ IDEA
 
 A TextMate bundle for `.hy` files -- Hydra's native textual syntax.
 Highlighting only: no go-to-definition, no error checking. That would

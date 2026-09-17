@@ -4,7 +4,7 @@
 <plist version="1.0">
 <dict>
   <key>name</key>
-  <string>Hydra</string>
+  <string>hydra</string>
   <key>description</key>
   <string>Syntax highlighting for Hydra's native textual syntax (.hy)</string>
   <key>uuid</key>
