@@ -10,8 +10,15 @@
 # aerodrome is a different instant every day of the year at some
 # latitudes, and controllers say it constantly. A date is coarser still.
 # Collapsing these to an instant at capture time discards the difference
-# between what was said and what was meant, and forces a guess at a zone
-# the speaker may never have supplied.
+# between what was said and what was meant.
+#
+# Zones are the exception, and are mandatory throughout. A time with an
+# unspecified zone is not a preserved ambiguity, it is an unusable
+# number: nothing downstream can order it, compare it or convert it, and
+# the context needed to resolve it is gone by then. So the zone is
+# inferred at capture -- from the station, the speaker, the surrounding
+# conversation -- and never persisted unknown. What stays deliberately
+# absent is the date, because that often genuinely cannot be recovered.
 
 module ai.cognisee.models.time
 
@@ -22,16 +29,26 @@ Date := wrap{string}
 
 # A clock time at a place, without a date: "0430". This is how
 # operational times are spoken, and it names an instant only once the
-# date and zone are known. Kept distinct from an instant so the
-# ambiguity stays visible rather than being silently resolved.
+# date is known. Kept distinct from an instant because the date is
+# genuinely absent from what was said, and inventing one would assert
+# something the speaker did not.
+#
+# The zone, by contrast, is mandatory. Both are unstated in speech, but
+# they differ in what can be done about it: a zone can be inferred from
+# the station or the speaker at capture time, while a date often cannot
+# be recovered at all. So the zone is resolved when the information is
+# still to hand, and the date stays out of this type.
 LocalTime := record{
   # Minutes past midnight, 0-1439. Ordering within a day is then
   # trivial, and no repeated parsing of "0430" is needed.
   minutesPastMidnight: int32,
-  # IANA zone name where known: "Europe/London". Absent when the speaker
-  # did not say and it cannot be inferred -- which is common, and worth
-  # preserving rather than guessing.
-  zone: optional<string>}
+  # The zone the clock time is read against. Mandatory: a local time
+  # without one is not a time, it is a number, and persisting it defers
+  # an ambiguity that only gets harder to resolve. The speaker usually
+  # does not say the zone, so it is inferred at capture -- from the
+  # station, the speaker's location, the surrounding context -- where
+  # that inference is still cheap and checkable.
+  zone: TimeZone}
 
 # An interval between two instants. Either end may be open: a disruption
 # that has begun and not ended has a start and no finish, and that is a
@@ -56,6 +73,19 @@ TimeKind := union{
 TimeReference := record{
   kind: TimeKind,
   value: Timespec}
+
+# A time zone, as an IANA name: "Europe/London", "America/Denver".
+#
+# Wrapped rather than left a bare string because it is an identifier
+# from a defined registry, not free text -- and because the alternative
+# ways of writing a zone are all worse. A UTC offset loses the rule that
+# generated it, so it cannot survive a daylight-saving boundary; an
+# abbreviation like "GST" is not unique across the world.
+#
+# Not an enum: the IANA database has several hundred entries and is
+# revised as states change their rules, so enumerating it here would
+# guarantee this module falls out of date.
+TimeZone := wrap{string}
 
 # The POSIX struct timespec, with the same semantics: an instant in time
 # as a number of seconds and nanoseconds since the Unix Epoch

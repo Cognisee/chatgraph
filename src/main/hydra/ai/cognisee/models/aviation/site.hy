@@ -93,7 +93,8 @@ Curfew := record{
   appliesTo: CurfewScope,
   # Whether an exception can be sought, and from whom, where known.
   exceptionAuthority: optional<string>,
-  # Local clock times bounding the window.
+  # Clock times bounding the window, in the aerodrome's own zone --
+  # which is how a curfew is always published and always spoken about.
   from: time.LocalTime,
   to: time.LocalTime}
 

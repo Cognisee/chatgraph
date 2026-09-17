@@ -24,7 +24,7 @@ import ai.cognisee.models.units as units
 Bank := record{
   # Whether this is an arrival or a departure cluster.
   direction: BankDirection,
-  # Local times bounding the cluster.
+  # Clock times bounding the cluster, in the hub's zone.
   endTime: time.LocalTime,
   name: string,
   startTime: time.LocalTime}

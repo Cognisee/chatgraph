@@ -19,7 +19,6 @@ the invariant and exclusions sections below.
 | Tag | Question | For |
 |---|---|---|
 | `Q-BANK` | Is a connecting bank a real operational object? | controller |
-| `Q-LOCALTIME` | Should `LocalTime`'s zone be optional or mandatory? | us |
 | `Q-AUTHORITY` | Where does decision authority escalate? | controller |
 | `Q-GROUNDTIME` | Is published minimum ground time treated as achievable? | controller |
 | `Q-OFFLOAD` | What decides who gets offloaded? | controller |
@@ -37,12 +36,6 @@ operator names and manages. Two independent sources reverse-engineered
 four banks at a major hub from schedule data; neither found the airline
 publishing them. *Good question for a controller: do you name your
 banks?*
-
-**Q-LOCALTIME. LocalTime shape.** Absolute instants use
-`hydra.time.Timespec`, and `ai.cognisee.models.time` adds only what it
-cannot express. One question left: is `LocalTime` as
-minutes-past-midnight plus an *optional* IANA zone right, or should the
-zone be mandatory with an explicit "not stated" case?
 
 ## Questions for an operations expert
 
@@ -119,6 +112,25 @@ single-day entity whose fields change no faster than it does),
 `GroundActivity` (the occurrence itself), `Capacity` and
 `HotelCapacity` (already time-bounded observations).
 
+## A capture rule: resolve what you can while you still can
+
+**Ambiguity that can be resolved at capture time is resolved then, not
+persisted.** The test is not whether the speaker stated something, but
+whether the information needed to work it out is still available.
+
+`LocalTime.zone` is the worked case. A controller almost never says the
+zone, so it is unstated in exactly the way a date is -- but the zone is
+recoverable from the station, the speaker or the surrounding
+conversation *at the moment of capture*, and unrecoverable a week later.
+So it is mandatory, and inferred. The date, which often genuinely cannot
+be recovered, stays out of the type.
+
+The general form: an unresolved value is not a faithfully preserved
+ambiguity. It is an unusable one -- nothing downstream can order,
+compare or convert it -- and the context that would have resolved it is
+gone. Preserve what was *said* in the transcript; persist what is *true*
+in the graph.
+
 ## A typing rule: closed vocabularies are not strings
 
 **If the set of values is fixed and known, it is an enum; if it is a
@@ -134,6 +146,7 @@ Applied so far:
 | `Deferral.category: string` ("A".."D") | `DeferralCategory` |
 | `Deferral.remaining: string` ("3 days") | `RectificationInterval` (days / cycles / hours) |
 | six station fields commented "as an ICAO code" | `site.IcaoCode` |
+| `LocalTime.zone: optional<string>` | `TimeZone`, mandatory |
 
 What legitimately stays a string: `Defect.description`, `ExtraFuel.reason`,
 `Advisory.content`, `DestinationRestriction.destinations` (stated at
