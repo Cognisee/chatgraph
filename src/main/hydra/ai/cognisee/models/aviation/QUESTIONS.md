@@ -4,6 +4,10 @@ Things I could not settle from public sources, or where I made a choice
 that deserves a second opinion. Several are good candidates for the
 pending MOC interview.
 
+Every remaining question is one only an operations expert can settle;
+the modelling choices that were ours to make have been made, and are
+recorded in the rules below.
+
 Each question has a stable tag (`Q-BANK`, `Q-FLOWRATE`, ...) so it can
 be cited from an interview plan, a commit message or another document.
 Tags are deliberately not numbers: resolved questions are removed rather
@@ -27,7 +31,7 @@ the invariant and exclusions sections below.
 | `Q-EXCEPTION` | Is a curfew exception a process or a relationship? | controller |
 | `Q-FLOWRATE` | What is the real flow rate under each condition? | controller |
 
-## Modelling choices I am unsure about
+## Questions for an operations expert
 
 **Q-BANK. Is `Bank` a real operational object?** I have modelled a
 connecting bank as a first-class type with a name and a time window. But
@@ -36,8 +40,6 @@ operator names and manages. Two independent sources reverse-engineered
 four banks at a major hub from schedule data; neither found the airline
 publishing them. *Good question for a controller: do you name your
 banks?*
-
-## Questions for an operations expert
 
 **Q-AUTHORITY. Where does authority escalate?** `DecisionAuthority` now
 names who holds a decision, confirmed for the diversion case: it is
